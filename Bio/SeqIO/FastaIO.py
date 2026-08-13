@@ -13,18 +13,16 @@
 You are expected to use this module via the Bio.SeqIO functions.
 """
 
+import warnings
+
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio import BiopythonDeprecationWarning
-
 
 from .Interfaces import _clean
 from .Interfaces import _get_seq_string
 from .Interfaces import _TextIOSource
 from .Interfaces import SequenceIterator
 from .Interfaces import SequenceWriter
-
-import warnings
 
 
 def SimpleFastaParser(handle):
@@ -111,8 +109,9 @@ def FastaTwoLineParser(handle):
 
     """
     idx = -1  # for empty file
+    line = ""
     for idx, line in enumerate(handle):
-        if idx % 2 == 0:  # title line
+        if not idx % 2:  # title line
             if line[0] != ">":
                 raise ValueError(
                     "Expected FASTA record starting with '>' character. "
@@ -130,14 +129,13 @@ def FastaTwoLineParser(handle):
             yield title, line.strip()
 
     if idx == -1:
-        pass  # empty file
-    elif idx % 2 == 0:  # on a title line
+        return  # empty file
+    if not idx % 2:  # stopped on a title line
         raise ValueError(
             "Missing sequence line at end of file if this is strict "
             f"two-line-per-record FASTA format. Have title line '{line}'"
         )
-    else:
-        assert line[0] != ">", "line[0] == '>' ; this should be impossible!"
+    assert line[0] != ">", "line[0] == '>' ; this should be impossible!"
 
 
 class FastaIterator(SequenceIterator):
@@ -373,7 +371,7 @@ class FastaBlastIterator(SequenceIterator):
             if line[0] in "#!;":
                 pass
             elif line[0] == ">":
-                self_line = line
+                self._line = line
                 break
             else:
                 lines.append(line.rstrip())
@@ -482,6 +480,22 @@ class FastaPearsonIterator(SequenceIterator):
         )
 
 
+def _format_title(clean_id, clean_description):
+    """Return the FASTA title line text (PRIVATE).
+
+    Arguments should already have been passed through ``_clean``/``clean``
+    to strip embedded newlines. By default a combination of the id and
+    description is used; if the description starts with the id, then just
+    the description is used.
+    """
+    if clean_description and clean_description.split(None, 1)[0] == clean_id:
+        # The description includes the id at the start
+        return clean_description
+    if clean_description:
+        return f"{clean_id} {clean_description}"
+    return clean_id
+
+
 class FastaWriter(SequenceWriter):
     """FASTA file writer."""
 
@@ -529,15 +543,7 @@ class FastaWriter(SequenceWriter):
     @classmethod
     def to_string(cls, record):
         """Turn a SeqRecord into a FASTA formatted string, and return it."""
-        id = _clean(record.id)
-        description = _clean(record.description)
-        if description and description.split(None, 1)[0] == id:
-            # The description includes the id at the start
-            title = description
-        elif description:
-            title = f"{id} {description}"
-        else:
-            title = id
+        title = _format_title(_clean(record.id), _clean(record.description))
         assert "\n" not in title
         assert "\r" not in title
         lines = [f">{title}\n"]
@@ -555,15 +561,7 @@ class FastaWriter(SequenceWriter):
         if self.record2title:
             title = self.clean(self.record2title(record))
         else:
-            id = self.clean(record.id)
-            description = self.clean(record.description)
-            if description and description.split(None, 1)[0] == id:
-                # The description includes the id at the start
-                title = description
-            elif description:
-                title = f"{id} {description}"
-            else:
-                title = id
+            title = _format_title(self.clean(record.id), self.clean(record.description))
 
         assert "\n" not in title
         assert "\r" not in title
@@ -623,15 +621,7 @@ class FastaTwoLineWriter(FastaWriter):
     @classmethod
     def to_string(cls, record):
         """Return a string in FASTA format with the sequence as one line."""
-        id = _clean(record.id)
-        description = _clean(record.description)
-        if description and description.split(None, 1)[0] == id:
-            # The description includes the id at the start
-            title = description
-        elif description:
-            title = f"{id} {description}"
-        else:
-            title = id
+        title = _format_title(_clean(record.id), _clean(record.description))
         assert "\n" not in title
         assert "\r" not in title
 
