@@ -364,21 +364,44 @@ class AbiIterator(SequenceIterator):
     def __next__(self):
         """Parse the file and generate SeqRecord objects."""
         stream = self.stream
-        # dirty hack for handling time information
-        times = {"RUND1": "", "RUND2": "", "RUNT1": "", "RUNT2": ""}
-
-        # initialize annotations
-        annot = dict(zip(_EXTRACT.values(), [None] * len(_EXTRACT)))
 
         # parse header and extract data from directories
         size = struct.calcsize(_HEADFMT)
         data = stream.read(size)
-        if len(data) == 0:
+        if not data:
             raise StopIteration
-        elif len(data) < size:
+        if len(data) < size:
             raise ValueError("premature end of file")
         header = struct.unpack(_HEADFMT, data)
 
+        raw, annot, seq, qual, sample_id = self._parse_tags(header, stream)
+        # fsa check
+        is_fsa_file = all(tn not in raw for tn in ("PBAS1", "PBAS2"))
+
+        record = self._build_record(raw, annot, seq, sample_id, is_fsa_file)
+        self._apply_quality(record, qual, is_fsa_file)
+
+        if self.trim and not is_fsa_file:
+            record = _abi_trim(record)
+
+        record.annotations["molecule_type"] = "DNA"
+        # Move to the end of file to indicate that we finished reading
+        stream.seek(0, io.SEEK_END)
+        return record
+
+    @staticmethod
+    def _parse_tags(header, stream):
+        """Walk the ABIF directory and pull out the data we care about (PRIVATE).
+
+        Returns a tuple ``(raw, annot, seq, qual, sample_id)`` where ``raw``
+        holds every parsed tag keyed by ``"<tag name><tag number>"``, and
+        ``annot`` holds the subset of tags destined for the record's
+        annotations, including the run start/finish timestamps.
+        """
+        # dirty hack for handling time information
+        times = {"RUND1": "", "RUND2": "", "RUNT1": "", "RUNT2": ""}
+        # initialize annotations
+        annot = dict(zip(_EXTRACT.values(), [None] * len(_EXTRACT)))
         # Set default sample ID value, which we expect to be present in most
         # cases in the SMPL1 tag, but may be missing.
         sample_id = "<unknown id>"
@@ -387,7 +410,6 @@ class AbiIterator(SequenceIterator):
         seq = qual = None
         for tag_name, tag_number, tag_data in _abi_parse_header(header, stream):
             key = tag_name + str(tag_number)
-
             raw[key] = tag_data
 
             # PBAS2 is base-called sequence, only available in 3530
@@ -402,65 +424,59 @@ class AbiIterator(SequenceIterator):
                 sample_id = _get_string_tag(tag_data)
             elif key in times:
                 times[key] = tag_data
-            else:
-                if key in _EXTRACT:
-                    annot[_EXTRACT[key]] = tag_data
+            elif key in _EXTRACT:
+                annot[_EXTRACT[key]] = tag_data
 
         # set time annotations
         annot["run_start"] = f"{times['RUND1']} {times['RUNT1']}"
         annot["run_finish"] = f"{times['RUND2']} {times['RUNT2']}"
-
         # raw data (for advanced end users benefit)
         annot["abif_raw"] = raw
 
-        # fsa check
-        is_fsa_file = all(tn not in raw for tn in ("PBAS1", "PBAS2"))
+        return raw, annot, seq, qual, sample_id
 
+    def _build_record(self, raw, annot, seq, sample_id, is_fsa_file):
+        """Build the SeqRecord for either an FSA or a sequencing file (PRIVATE)."""
         if is_fsa_file:
-            try:
-                file_name = basename(stream.name).replace(".fsa", "")
-            except AttributeError:
-                file_name = ""
-
             sample_id = _get_string_tag(raw.get("LIMS1"), sample_id)
             description = _get_string_tag(raw.get("CTID1"), "<unknown description>")
-            record = SeqRecord(
+            return SeqRecord(
                 Seq(""),
                 id=sample_id,
-                name=file_name,
+                name=self._file_stem(".fsa"),
                 description=description,
                 annotations=annot,
             )
 
-        else:
-            # use the file name as SeqRecord.name if available
-            try:
-                file_name = basename(stream.name).replace(".ab1", "")
-            except AttributeError:
-                file_name = ""
-            record = SeqRecord(
-                Seq(seq),
-                id=sample_id,
-                name=file_name,
-                description="",
-                annotations=annot,
-            )
+        return SeqRecord(
+            Seq(seq),
+            id=sample_id,
+            name=self._file_stem(".ab1"),
+            description="",
+            annotations=annot,
+        )
+
+    def _file_stem(self, suffix):
+        """Return the input file's name with the given suffix stripped (PRIVATE).
+
+        Returns "" if the underlying stream has no file name (e.g. it is an
+        in-memory buffer rather than an actual file).
+        """
+        try:
+            return basename(self.stream.name).replace(suffix, "")
+        except AttributeError:
+            return ""
+
+    def _apply_quality(self, record, qual, is_fsa_file):
+        """Attach phred quality scores to ``record``, if any were parsed (PRIVATE)."""
         if qual:
             # Expect this to be missing for FSA files.
             record.letter_annotations["phred_quality"] = qual
-        elif not is_fsa_file and not qual and self.trim:
+        elif not is_fsa_file and self.trim:
             raise ValueError(
                 "The 'abi-trim' format can not be used for files without"
                 " quality values."
             )
-
-        if self.trim and not is_fsa_file:
-            record = _abi_trim(record)
-
-        record.annotations["molecule_type"] = "DNA"
-        # Move to the end of file to indicate that we finished reading
-        stream.seek(0, io.SEEK_END)
-        return record
 
 
 def _AbiTrimIterator(stream):
@@ -474,36 +490,24 @@ def _abi_parse_header(header, stream):
     # file version, tag name, tag number,
     # element type code, element size, number of elements
     # data size, data offset, handle (not file handle)
-    head_elem_size = header[4]
-    head_elem_num = header[5]
-    head_offset = header[7]
+    head_elem_size, head_elem_num, head_offset = header[4], header[5], header[7]
 
     for index in range(head_elem_num):
         start = head_offset + index * head_elem_size
+        stream.seek(start)
         # add directory offset to tuple
         # to handle directories with data size <= 4 bytes
-        stream.seek(start)
         dir_entry = struct.unpack(_DIRFMT, stream.read(struct.calcsize(_DIRFMT))) + (
             start,
         )
-        # only parse desired dirs
-        key = dir_entry[0].decode()
-        key += str(dir_entry[1])
-
         tag_name = dir_entry[0].decode()
-        tag_number = dir_entry[1]
-        elem_code = dir_entry[2]
-        elem_num = dir_entry[4]
         data_size = dir_entry[5]
-        data_offset = dir_entry[6]
-        tag_offset = dir_entry[8]
         # if data size <= 4 bytes, data is stored inside tag
-        # so offset needs to be changed
-        if data_size <= 4:
-            data_offset = tag_offset + 20
+        # so offset needs to be changed (tag_offset is dir_entry[8])
+        data_offset = dir_entry[6] if data_size > 4 else dir_entry[8] + 20
         stream.seek(data_offset)
         data = stream.read(data_size)
-        yield tag_name, tag_number, _parse_tag_data(elem_code, elem_num, data)
+        yield tag_name, dir_entry[1], _parse_tag_data(dir_entry[2], dir_entry[4], data)
 
 
 def _abi_trim(seq_record):
@@ -520,41 +524,60 @@ def _abi_trim(seq_record):
     http://www.phrap.org/phredphrap/phred.html
     http://resources.qiagenbioinformatics.com/manuals/clcgenomicsworkbench/650/Quality_trimming.html
     """
-    start = False  # flag for starting position of trimmed sequence
     segment = 20  # minimum sequence length
-    trim_start = 0  # init start index
     cutoff = 0.05  # default cutoff value for calculating base score
 
     if len(seq_record) <= segment:
         return seq_record
-    else:
-        # calculate base score
-        score_list = [
-            cutoff - (10 ** (qual / -10.0))
-            for qual in seq_record.letter_annotations["phred_quality"]
-        ]
 
-        # calculate cumulative score
-        # if cumulative value < 0, set it to 0
-        # first value is set to 0, because of the assumption that
-        # the first base will always be trimmed out
-        cummul_score = [0]
-        for i in range(1, len(score_list)):
-            score = cummul_score[-1] + score_list[i]
-            if score < 0:
-                cummul_score.append(0)
-            else:
-                cummul_score.append(score)
-                if not start:
-                    # trim_start = value when cumulative score is first > 0
-                    trim_start = i
-                    start = True
+    # calculate base score
+    score_list = [
+        cutoff - (10 ** (qual / -10.0))
+        for qual in seq_record.letter_annotations["phred_quality"]
+    ]
 
-        # trim_finish = index of highest cumulative score,
-        # marking the end of sequence segment with highest cumulative score
-        trim_finish = cummul_score.index(max(cummul_score))
+    trim_start, cummul_score = _cumulative_trim_scores(score_list)
 
-        return seq_record[trim_start:trim_finish]
+    # trim_finish = index of highest cumulative score,
+    # marking the end of sequence segment with highest cumulative score
+    trim_finish = cummul_score.index(max(cummul_score))
+
+    return seq_record[trim_start:trim_finish]
+
+
+def _cumulative_trim_scores(score_list):
+    """Return (trim_start, cumulative_scores) from per-base trim scores (PRIVATE).
+
+    The cumulative score is reset to 0 whenever it would otherwise go
+    negative. ``trim_start`` is the index of the first base for which the
+    cumulative score becomes positive, on the assumption that the first
+    base of the segment will always be trimmed out.
+    """
+    start = False  # flag for starting position of trimmed sequence
+    trim_start = 0  # init start index
+    cummul_score = [0]
+    for i in range(1, len(score_list)):
+        score = cummul_score[-1] + score_list[i]
+        if score < 0:
+            cummul_score.append(0)
+        else:
+            cummul_score.append(score)
+            if not start:
+                trim_start = i
+                start = True
+    return trim_start, cummul_score
+
+
+# Per-element-code conversion applied to the raw unpacked data by
+# _parse_tag_data, for the element codes that need extra processing. Codes
+# not listed here (e.g. plain numbers) are returned unconverted.
+_ELEM_CODE_CONVERTERS = {
+    10: lambda data: str(datetime.date(*data)),  # date
+    11: lambda data: str(datetime.time(*data[:3])),  # time
+    13: bool,  # bool
+    18: lambda data: data[1:],  # pString: drop the length byte
+    19: lambda data: data[:-1],  # cString: drop the trailing NUL
+}
 
 
 def _parse_tag_data(elem_code, elem_num, raw_data):
@@ -566,39 +589,24 @@ def _parse_tag_data(elem_code, elem_num, raw_data):
      - raw_data - abi file object from which the tags would be unpacked
 
     """
-    if elem_code in _BYTEFMT:
-        # because '>1s' unpack differently from '>s'
-        if elem_num == 1:
-            num = ""
-        else:
-            num = str(elem_num)
-        fmt = ">" + num + _BYTEFMT[elem_code]
-
-        assert len(raw_data) == struct.calcsize(fmt)
-        data = struct.unpack(fmt, raw_data)
-
-        # no need to use tuple if len(data) == 1
-        # also if data is date / time
-        if elem_code not in [10, 11] and len(data) == 1:
-            data = data[0]
-
-        # account for different data types
-        if elem_code == 2:
-            return data
-        elif elem_code == 10:
-            return str(datetime.date(*data))
-        elif elem_code == 11:
-            return str(datetime.time(*data[:3]))
-        elif elem_code == 13:
-            return bool(data)
-        elif elem_code == 18:
-            return data[1:]
-        elif elem_code == 19:
-            return data[:-1]
-        else:
-            return data
-    else:
+    if elem_code not in _BYTEFMT:
         return None
+
+    # because '>1s' unpack differently from '>s'
+    num = "" if elem_num == 1 else str(elem_num)
+    fmt = ">" + num + _BYTEFMT[elem_code]
+
+    assert len(raw_data) == struct.calcsize(fmt)
+    data = struct.unpack(fmt, raw_data)
+
+    # no need to use tuple if len(data) == 1
+    # also if data is date / time
+    if elem_code not in (10, 11) and len(data) == 1:
+        data = data[0]
+
+    # account for different data types
+    convert = _ELEM_CODE_CONVERTERS.get(elem_code, lambda value: value)
+    return convert(data)
 
 
 if __name__ == "__main__":
