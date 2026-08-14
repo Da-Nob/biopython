@@ -1,0 +1,15 @@
+[
+    {
+        "type": "fatal",
+        "module": "..\\Bio\\Align\bigpsl.py",
+        "obj": "",
+        "line": 1,
+        "column": 0,
+        "endLine": null,
+        "endColumn": null,
+        "path": "..\\Bio\\Align\bigpsl.py",
+        "symbol": "fatal",
+        "message": "No module named ..\\Bio\\Align\bigpsl.py",
+        "message-id": "F0001"
+    }
+]
