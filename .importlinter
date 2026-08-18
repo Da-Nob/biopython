@@ -1,0 +1,8 @@
+[importlinter]
+root_package = Bio
+
+[importlinter:contract:bigpsl-independence]
+name = BigPsl independence
+type = independence
+modules =
+    Bio.Align.bigpsl
