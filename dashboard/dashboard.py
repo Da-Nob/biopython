@@ -21,36 +21,51 @@ st.set_page_config(
 BASE_DIR = Path(__file__).parent
 RESULTADOS_DIR = BASE_DIR / "resultados"
 
+# O seu código é dinâmico! Basta adicionar o arquivo aqui 
+# e ele buscará automaticamente os JSONs correspondentes.
+ARQUIVOS = {
+    "bigpsl.py": "Bio/Align/bigpsl.py",
+    "bigmaf.py": "Bio/Align/bigmaf.py",
+    "bed.py": "Bio/Align/bed.py", # <-- ADICIONADO AQUI
+}
+
 
 # ============================================================
 # FUNÇÕES
 # ============================================================
 
 def carregar_json(nome):
-    """Carrega um arquivo JSON da pasta resultados."""
+    """Carrega um arquivo JSON da pasta resultados.
+
+    Tenta UTF-8 e UTF-16 porque arquivos gerados pelo
+    redirecionamento do PowerShell podem estar em UTF-16.
+    """
     caminho = RESULTADOS_DIR / nome
 
     if not caminho.exists():
         return None
 
-    with open(caminho, "r", encoding="utf-8-sig") as arquivo:
-        return json.load(arquivo)
+    for encoding in ("utf-8-sig", "utf-16", "utf-8"):
+        try:
+            with open(caminho, "r", encoding=encoding) as arquivo:
+                return json.load(arquivo)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+
+    st.error(f"Não foi possível ler o arquivo JSON: {nome}")
+    return None
 
 
 def classe_radon(complexidade):
-    """Converte a complexidade numérica para a classificação Radon."""
+    """Converte complexidade para classificação Radon."""
     if complexidade <= 5:
         return "A"
-
     if complexidade <= 10:
         return "B"
-
     if complexidade <= 20:
         return "C"
-
     if complexidade <= 30:
         return "D"
-
     if complexidade <= 40:
         return "E"
 
@@ -58,7 +73,7 @@ def classe_radon(complexidade):
 
 
 def executar_comando(comando):
-    """Executa uma ferramenta externa e retorna sua saída."""
+    """Executa uma ferramenta externa."""
     try:
         resultado = subprocess.run(
             comando,
@@ -70,6 +85,7 @@ def executar_comando(comando):
         )
 
         saida = resultado.stdout
+
         if resultado.stderr:
             saida += "\n" + resultado.stderr
 
@@ -80,33 +96,43 @@ def executar_comando(comando):
 
 
 @st.cache_data
-def obter_coesao():
-    """Executa o Cohesion e extrai a coesão das classes."""
+def obter_coesao(arquivo):
+    """Executa o Cohesion para o arquivo selecionado."""
     comando = [
         "cohesion",
         "--files",
-        "Bio/Align/bigpsl.py",
+        arquivo,
         "--verbose",
     ]
 
     _, saida = executar_comando(comando)
 
     classes = {}
-
     classe_atual = None
 
     for linha in saida.splitlines():
         linha = linha.strip()
 
-        match_classe = re.match(r"Class:\s+(.+?)\s+\(\d+:\d+\)", linha)
+        match_classe = re.match(
+            r"Class:\s+(.+?)\s+\(\d+:\d+\)",
+            linha,
+        )
+
         if match_classe:
             classe_atual = match_classe.group(1)
             continue
 
         if linha.startswith("Total:") and classe_atual:
-            match_total = re.search(r"Total:\s+([\d.]+)%", linha)
+            match_total = re.search(
+                r"Total:\s+([\d.]+)%",
+                linha,
+            )
+
             if match_total:
-                classes[classe_atual] = float(match_total.group(1))
+                classes[classe_atual] = float(
+                    match_total.group(1)
+                )
+
                 classe_atual = None
 
     return classes, saida
@@ -114,7 +140,7 @@ def obter_coesao():
 
 @st.cache_data
 def obter_import_linter():
-    """Executa o Import Linter e extrai o resultado do contrato."""
+    """Executa o Import Linter."""
     comando = ["lint-imports"]
 
     _, saida = executar_comando(comando)
@@ -122,7 +148,6 @@ def obter_import_linter():
     status = "N/A"
     arquivos = 0
     dependencias = 0
-    contrato = "BigPsl independence"
 
     match_analise = re.search(
         r"Analyzed\s+(\d+)\s+files,\s+(\d+)\s+dependencies\.",
@@ -135,8 +160,11 @@ def obter_import_linter():
 
     if "Contracts: 1 kept, 0 broken." in saida:
         status = "KEPT"
+
     elif "Contracts: 0 kept, 1 broken." in saida:
         status = "BROKEN"
+
+    contrato = "BigPsl independence"
 
     return {
         "contrato": contrato,
@@ -154,8 +182,7 @@ def criar_grafico_barra(
     formato_texto=".2f",
     altura=500,
 ):
-    """Cria um gráfico de barras com o padrão visual do dashboard."""
-
+    """Cria gráfico de barras."""
     fig = go.Figure()
 
     fig.add_trace(
@@ -191,7 +218,6 @@ def criar_grafico_barra(
             ),
         ),
         xaxis=dict(
-            title="",
             showgrid=False,
             zeroline=False,
             tickfont=dict(
@@ -209,10 +235,6 @@ def criar_grafico_barra(
             tickfont=dict(
                 size=12,
                 color="#777777",
-            ),
-            title_font=dict(
-                size=13,
-                color="#555555",
             ),
         ),
         plot_bgcolor="white",
@@ -235,13 +257,90 @@ def criar_grafico_barra(
     return fig
 
 
-# ============================================================
-# CARREGAMENTO
-# ============================================================
+def carregar_resultados_arquivo(nome_arquivo):
+    """
+    Carrega os resultados de Radon, MI e Pylint
+    referentes ao arquivo selecionado.
+    """
+    # A MÁGICA ESTÁ AQUI: Extrai 'bed' de 'bed.py' automaticamente
+    nome = Path(nome_arquivo).stem 
 
-radon_depois = carregar_json("radon_depois.json")
-mi_depois = carregar_json("mi_depois.json")
-pylint_depois = carregar_json("pylint_depois.json")
+    return {
+        "radon_antes": carregar_json(
+            f"radon_{nome}_antes.json"
+        ),
+        "radon_depois": carregar_json(
+            f"radon_{nome}_depois.json"
+        ),
+        "mi_antes": carregar_json(
+            f"mi_{nome}_antes.json"
+        ),
+        "mi_depois": carregar_json(
+            f"mi_{nome}_depois.json"
+        ),
+        "pylint_antes": carregar_json(
+            f"pylint_{nome}_antes.json"
+        ),
+        "pylint_depois": carregar_json(
+            f"pylint_{nome}_depois.json"
+        ),
+    }
+
+
+def extrair_metodos(radon):
+    """Extrai métodos do resultado JSON do Radon (Versão Otimizada)."""
+    registros = []
+
+    if not radon:
+        return registros
+
+    for blocos in radon.values():
+        if not isinstance(blocos, list):
+            continue
+
+        for bloco in blocos:
+            if bloco.get("type") in ("method", "function"):
+                registros.append(
+                    {
+                        "Método": bloco["name"],
+                        "Complexidade": bloco["complexity"],
+                        "Classificação": classe_radon(
+                            bloco["complexity"]
+                        ),
+                    }
+                )
+
+    return registros
+
+
+def calcular_media_complexidade(radon):
+    """Calcula a complexidade média."""
+    metodos = extrair_metodos(radon)
+
+    if not metodos:
+        return None
+
+    return sum(
+        metodo["Complexidade"]
+        for metodo in metodos
+    ) / len(metodos)
+
+
+def obter_mi_valor(dados):
+    """Extrai o Maintainability Index do JSON do Radon."""
+    if not dados:
+        return None
+
+    if isinstance(dados, dict):
+        valores = list(dados.values())
+
+        if valores:
+            valor = valores[0]
+
+            if isinstance(valor, (int, float)):
+                return float(valor)
+
+    return None
 
 
 # ============================================================
@@ -250,18 +349,40 @@ pylint_depois = carregar_json("pylint_depois.json")
 
 st.sidebar.title("⚙️ Configurações")
 
-arquivo = st.sidebar.selectbox(
+arquivo_nome = st.sidebar.selectbox(
     "Arquivo analisado",
-    ["bigpsl.py"],
+    list(ARQUIVOS.keys()),
 )
+
+arquivo = ARQUIVOS[arquivo_nome]
 
 st.sidebar.markdown("---")
 
 st.sidebar.write("**Ferramentas utilizadas:**")
 st.sidebar.write("🔵 Radon")
 st.sidebar.write("🟢 Pylint")
-st.sidebar.write("🟠 Plotly")
+st.sidebar.write("🟣 Cohesion")
+st.sidebar.write("🟠 Import Linter")
+st.sidebar.write("📈 Plotly")
 st.sidebar.write("🔴 Streamlit")
+
+
+# ============================================================
+# CARREGAMENTO
+# ============================================================
+
+resultados = carregar_resultados_arquivo(
+    arquivo_nome
+)
+
+radon_antes = resultados["radon_antes"]
+radon_depois = resultados["radon_depois"]
+
+mi_antes = resultados["mi_antes"]
+mi_depois = resultados["mi_depois"]
+
+pylint_antes = resultados["pylint_antes"]
+pylint_depois = resultados["pylint_depois"]
 
 
 # ============================================================
@@ -271,454 +392,326 @@ st.sidebar.write("🔴 Streamlit")
 st.title("📊 Dashboard de Qualidade de Software")
 
 st.markdown(
-    """
-    **Projeto:** Análise e refatoração do Biopython  
-    **Arquivo:** `Bio/Align/bigpsl.py`
+    f"""
+    **Projeto:** Análise e refatoração do Biopython
+
+    **Arquivo:** `{arquivo}`
     """
 )
 
 
 # ============================================================
-# DADOS DA REFATORAÇÃO
+# RADON
 # ============================================================
 
-# Antes da refatoração
-write_antes = 50
-media_antes = 21.666666666666668
-mi_antes = 32.08
+st.subheader("1. Complexidade ciclomática")
 
-# Depois da refatoração
-write_depois = 4
-media_depois = 7.375
-mi_depois_valor = 24.18
+media_antes = calcular_media_complexidade(
+    radon_antes
+)
+
+media_depois = calcular_media_complexidade(
+    radon_depois
+)
+
+metodos_antes = extrair_metodos(
+    radon_antes
+)
+
+metodos_depois = extrair_metodos(
+    radon_depois
+)
 
 
 # ============================================================
 # CARDS
 # ============================================================
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3 = st.columns(3)
 
-col1.metric(
-    "write_file - Antes",
-    "50",
-)
+if metodos_antes:
+    maior_antes = max(
+        metodos_antes,
+        key=lambda x: x["Complexidade"]
+    )
 
-col2.metric(
-    "write_file - Depois",
-    "4",
-    delta="-46",
-)
-
-col3.metric(
-    "Complexidade média",
-    "7,38",
-    delta="-14,29",
-)
-
-col4.metric(
-    "Maintainability Index",
-    "24,18",
-    delta="-7,90",
-)
+    col1.metric(
+        "Maior complexidade - Antes",
+        maior_antes["Complexidade"],
+        maior_antes["Método"],
+    )
+else:
+    col1.metric(
+        "Maior complexidade - Antes",
+        "N/A",
+    )
 
 
-# ============================================================
-# GRÁFICO 1 - WRITE_FILE
-# ============================================================
+if metodos_depois:
+    maior_depois = max(
+        metodos_depois,
+        key=lambda x: x["Complexidade"]
+    )
 
-st.subheader("1. Complexidade do `AlignmentWriter.write_file`")
+    col2.metric(
+        "Maior complexidade - Depois",
+        maior_depois["Complexidade"],
+        maior_depois["Método"],
+    )
+else:
+    col2.metric(
+        "Maior complexidade - Depois",
+        "N/A",
+    )
 
-df_write = pd.DataFrame(
-    {
-        "Estado": [
-            "Antes",
-            "Depois",
-        ],
-        "Complexidade": [
-            write_antes,
-            write_depois,
-        ],
-    }
-)
 
-fig_write = criar_grafico_barra(
-    x=df_write["Estado"],
-    y=df_write["Complexidade"],
-    titulo="Complexidade ciclomática - write_file",
-    nome_eixo_y="Complexidade",
-    formato_texto=".0f",
-)
+if media_antes is not None and media_depois is not None:
 
-st.plotly_chart(
-    fig_write,
-    use_container_width=True,
-)
+    reducao = (
+        (media_antes - media_depois)
+        / media_antes
+    ) * 100
+
+    col3.metric(
+        "Redução da complexidade média",
+        f"{reducao:.2f}%",
+    )
+else:
+    col3.metric(
+        "Redução da complexidade média",
+        "N/A",
+    )
 
 
 # ============================================================
-# GRÁFICO 2 - COMPLEXIDADE MÉDIA
+# COMPARAÇÃO DA COMPLEXIDADE MÉDIA
 # ============================================================
 
-st.subheader("2. Complexidade média do arquivo")
+if media_antes is not None and media_depois is not None:
 
-df_media = pd.DataFrame(
-    {
-        "Estado": [
-            "Antes",
-            "Depois",
-        ],
-        "Complexidade média": [
-            media_antes,
-            media_depois,
-        ],
-    }
-)
+    df_media = pd.DataFrame(
+        {
+            "Estado": [
+                "Antes",
+                "Depois",
+            ],
+            "Complexidade": [
+                media_antes,
+                media_depois,
+            ],
+        }
+    )
 
-fig_media = criar_grafico_barra(
-    x=df_media["Estado"],
-    y=df_media["Complexidade média"],
-    titulo="Complexidade média - bigpsl.py",
-    nome_eixo_y="Complexidade média",
-    formato_texto=".2f",
-)
+    fig_media = criar_grafico_barra(
+        x=df_media["Estado"],
+        y=df_media["Complexidade"],
+        titulo=(
+            f"Complexidade média - {arquivo_nome}"
+        ),
+        nome_eixo_y="Complexidade média",
+        formato_texto=".2f",
+    )
 
-st.plotly_chart(
-    fig_media,
-    use_container_width=True,
-)
+    st.plotly_chart(
+        fig_media,
+        use_container_width=True,
+    )
+
+else:
+
+    st.warning(
+        "Não foram encontrados resultados do Radon "
+        "para comparação."
+    )
 
 
 # ============================================================
-# GRÁFICO 3 - MAINTAINABILITY INDEX
+# MÉTODOS DEPOIS
 # ============================================================
 
-st.subheader("3. Maintainability Index")
-
-df_mi = pd.DataFrame(
-    {
-        "Estado": [
-            "Antes",
-            "Depois",
-        ],
-        "Maintainability Index": [
-            mi_antes,
-            mi_depois_valor,
-        ],
-    }
+st.subheader(
+    "2. Complexidade dos métodos após a refatoração"
 )
 
-fig_mi = criar_grafico_barra(
-    x=df_mi["Estado"],
-    y=df_mi["Maintainability Index"],
-    titulo="Maintainability Index - bigpsl.py",
-    nome_eixo_y="Maintainability Index",
-    formato_texto=".2f",
-)
+if metodos_depois:
 
-st.plotly_chart(
-    fig_mi,
-    use_container_width=True,
-)
+    df_metodos = pd.DataFrame(
+        metodos_depois
+    )
+
+    df_metodos = df_metodos.sort_values(
+        "Complexidade",
+        ascending=False,
+    )
+
+    fig_metodos = go.Figure()
+
+    fig_metodos.add_trace(
+        go.Bar(
+            x=df_metodos["Complexidade"],
+            y=df_metodos["Método"],
+            orientation="h",
+            text=df_metodos["Complexidade"],
+            texttemplate="%{text:.0f}",
+            textposition="outside",
+            marker=dict(
+                color="#B18AEF",
+                line=dict(width=0),
+            ),
+            width=0.35,
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Complexidade: %{x:.0f}"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+    maior = max(
+        df_metodos["Complexidade"]
+    )
+
+    fig_metodos.update_layout(
+        title=f"Métodos - {arquivo_nome}",
+        xaxis=dict(
+            title="Complexidade",
+            showgrid=True,
+            gridcolor="#E5E5E5",
+            griddash="dot",
+            range=[0, maior * 1.2],
+        ),
+        yaxis=dict(
+            title="",
+            autorange="reversed",
+            showgrid=False,
+        ),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        height=550,
+        showlegend=False,
+    )
+
+    st.plotly_chart(
+        fig_metodos,
+        use_container_width=True,
+    )
+
+    st.dataframe(
+        df_metodos,
+        use_container_width=True,
+        hide_index=True,
+    )
+
 
 # ============================================================
 # COESÃO
 # ============================================================
 
-coesao_depois, saida_cohesion = obter_coesao()
+st.subheader("3. Coesão das classes")
 
-cohesion_writer = coesao_depois.get("AlignmentWriter", 0)
-cohesion_iterator = coesao_depois.get("AlignmentIterator", 0)
-
-
-# ============================================================
-# ACOPLAMENTO - IMPORT LINTER
-# ============================================================
-
-import_linter_resultado, saida_import_linter = obter_import_linter()
-
-import_linter_status = import_linter_resultado["status"]
-import_linter_dependencies = import_linter_resultado["dependencias"]
-import_linter_files = import_linter_resultado["arquivos"]
-import_linter_contract = import_linter_resultado["contrato"]
-
-# ============================================================
-# GRÁFICO 4 - COESÃO
-# ============================================================
-
-st.subheader("4. Coesão das classes")
-
-df_cohesion = pd.DataFrame(
-    {
-        "Classe": [
-            "AlignmentWriter",
-            "AlignmentIterator",
-        ],
-        "Coesão (%)": [
-            cohesion_writer,
-            cohesion_iterator,
-        ],
-    }
+coesao, saida_cohesion = obter_coesao(
+    arquivo
 )
 
-fig_cohesion = go.Figure()
+if coesao:
 
-fig_cohesion.add_trace(
-    go.Bar(
+    df_cohesion = pd.DataFrame(
+        {
+            "Classe": list(coesao.keys()),
+            "Coesão (%)": list(coesao.values()),
+        }
+    )
+
+    fig_cohesion = criar_grafico_barra(
         x=df_cohesion["Classe"],
         y=df_cohesion["Coesão (%)"],
-        text=df_cohesion["Coesão (%)"],
-        texttemplate="%{text:.2f}%",
-        textposition="outside",
-        marker=dict(
-            color="#B18AEF",
-            line=dict(width=0),
-        ),
-        hovertemplate=(
-            "<b>%{x}</b><br>"
-            "Coesão: %{y:.2f}%"
-            "<extra></extra>"
-        ),
-    )
-)
-
-fig_cohesion.update_layout(
-    title="Coesão das classes - bigpsl.py",
-    xaxis=dict(
-        title="",
-        showgrid=False,
-        zeroline=False,
-    ),
-    yaxis=dict(
-        title="Coesão (%)",
-        showgrid=True,
-        gridcolor="#E5E5E5",
-        zeroline=False,
-        range=[0, 100],
-    ),
-    plot_bgcolor="white",
-    paper_bgcolor="white",
-    font=dict(
-        size=14,
-        color="#333333",
-    ),
-    margin=dict(
-        l=60,
-        r=30,
-        t=70,
-        b=60,
-    ),
-    showlegend=False,
-)
-
-fig_cohesion.update_traces(
-    width=0.35,
-)
-
-st.plotly_chart(
-    fig_cohesion,
-    use_container_width=True,
-)
-
-if not coesao_depois:
-    st.warning(
-        "Não foi possível obter os resultados do Cohesion. "
-        "Verifique se o comando 'cohesion' está disponível no ambiente virtual."
+        titulo=f"Coesão - {arquivo_nome}",
+        nome_eixo_y="Coesão (%)",
+        formato_texto=".2f",
     )
 
+    fig_cohesion.update_yaxes(
+        range=[0, 100]
+    )
 
-# ============================================================
-# GRÁFICO 5 - MÉTODOS DEPOIS DA REFATORAÇÃO
-# ============================================================
+    st.plotly_chart(
+        fig_cohesion,
+        use_container_width=True,
+    )
 
-st.subheader(
-    "5. Complexidade dos métodos após a refatoração"
-)
-
-if radon_depois:
-
-    registros = []
-
-    for arquivo_nome, metodos in radon_depois.items():
-
-        for metodo in metodos:
-
-            if metodo.get("type") == "method":
-
-                registros.append(
-                    {
-                        "Método": metodo["name"],
-                        "Complexidade": metodo["complexity"],
-                        "Classificação": classe_radon(
-                            metodo["complexity"]
-                        ),
-                    }
-                )
-
-    if registros:
-
-        df_metodos = pd.DataFrame(registros)
-
-        df_metodos = df_metodos.sort_values(
-            "Complexidade",
-            ascending=False,
-        )
-
-        # Gráfico horizontal para facilitar a leitura dos nomes dos métodos
-        fig_metodos = go.Figure()
-
-        fig_metodos.add_trace(
-            go.Bar(
-                x=df_metodos["Complexidade"],
-                y=df_metodos["Método"],
-                orientation="h",
-                text=df_metodos["Complexidade"],
-                texttemplate="%{text:.0f}",
-                textposition="outside",
-                marker=dict(
-                    color="#B18AEF",
-                    line=dict(width=0),
-                ),
-                width=0.35,
-                hovertemplate=(
-                    "<b>%{y}</b><br>"
-                    "Complexidade: %{x:.0f}"
-                    "<extra></extra>"
-                ),
-            )
-        )
-
-        maior_complexidade = (
-            max(df_metodos["Complexidade"])
-            if not df_metodos.empty
-            else 1
-        )
-
-        fig_metodos.update_layout(
-            title=dict(
-                text="Complexidade dos métodos - Depois",
-                x=0.5,
-                xanchor="center",
-                font=dict(size=18, color="#333333"),
-            ),
-            xaxis=dict(
-                title="Complexidade",
-                showgrid=True,
-                gridcolor="#E5E5E5",
-                griddash="dot",
-                zeroline=False,
-                range=[0, maior_complexidade * 1.2],
-                tickfont=dict(size=12, color="#777777"),
-                title_font=dict(size=13, color="#555555"),
-            ),
-            yaxis=dict(
-                title="",
-                showgrid=False,
-                zeroline=False,
-                tickfont=dict(size=13, color="#555555"),
-                autorange="reversed",
-            ),
-            plot_bgcolor="white",
-            paper_bgcolor="white",
-            font=dict(family="Arial", size=14, color="#333333"),
-            margin=dict(l=180, r=60, t=80, b=70),
-            showlegend=False,
-            height=550,
-        )
-
-        st.plotly_chart(
-            fig_metodos,
-            use_container_width=True,
-        )
-
-        st.dataframe(
-            df_metodos,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    else:
-
-        st.warning(
-            "Não foram encontrados métodos no JSON do Radon."
-        )
+    st.dataframe(
+        df_cohesion,
+        use_container_width=True,
+        hide_index=True,
+    )
 
 else:
 
     st.warning(
-        "O arquivo radon_depois.json não foi encontrado."
+        "Não foi possível obter os resultados "
+        "do Cohesion."
     )
 
 
 # ============================================================
-# GRÁFICO 6 - IMPORT LINTER - ACOPLAMENTO
+# IMPORT LINTER
 # ============================================================
 
-st.subheader("6. Acoplamento arquitetural")
+st.subheader("4. Acoplamento arquitetural")
+
+import_linter, saida_linter = (
+    obter_import_linter()
+)
 
 col1, col2, col3 = st.columns(3)
 
 col1.metric(
-    "Status do contrato",
-    import_linter_status,
+    "Contrato",
+    import_linter["status"],
 )
 
 col2.metric(
     "Arquivos analisados",
-    import_linter_files,
+    import_linter["arquivos"],
 )
 
 col3.metric(
-    "Dependências analisadas",
-    import_linter_dependencies,
+    "Dependências",
+    import_linter["dependencias"],
 )
 
-st.markdown(
-    """
-    **Contrato:** `{import_linter_contract}`
+if import_linter["status"] == "KEPT":
 
-    O contrato foi classificado como **KEPT**, indicando que
-    a regra arquitetural definida no Import Linter foi respeitada.
-    """
-)
-
-df_linter = pd.DataFrame(
-    {
-        "Contrato": ["BigPsl independence"],
-        "Status": [import_linter_status],
-        "Arquivos analisados": [import_linter_files],
-        "Dependências": [import_linter_dependencies],
-    }
-)
-
-st.dataframe(
-    df_linter,
-    use_container_width=True,
-    hide_index=True,
-)
-
-if import_linter_status == "BROKEN":
-    st.error(
-        "O Import Linter encontrou uma violação no contrato arquitetural."
-    )
-elif import_linter_status == "N/A":
-    st.warning(
-        "Não foi possível interpretar o resultado do Import Linter."
-    )
-else:
     st.success(
-        "O contrato arquitetural foi mantido pelo Import Linter."
+        "O contrato arquitetural foi mantido."
     )
 
+elif import_linter["status"] == "BROKEN":
+
+    st.error(
+        "O Import Linter encontrou uma "
+        "violação arquitetural."
+    )
+
+else:
+
+    st.warning(
+        "Não foi possível interpretar "
+        "o resultado do Import Linter."
+    )
+
+
 # ============================================================
-# GRÁFICO 7 - PYLINT
+# PYLINT
 # ============================================================
 
-st.subheader("7. Análise do Pylint")
+st.subheader("5. Análise do Pylint")
 
-if pylint_depois is not None:
+if pylint_depois:
 
-    df_pylint = pd.DataFrame(pylint_depois)
+    df_pylint = pd.DataFrame(
+        pylint_depois
+    )
 
     if not df_pylint.empty:
 
@@ -736,7 +729,7 @@ if pylint_depois is not None:
         fig_pylint = criar_grafico_barra(
             x=contagem["Tipo"],
             y=contagem["Quantidade"],
-            titulo="Problemas encontrados pelo Pylint",
+            titulo=f"Pylint - {arquivo_nome}",
             nome_eixo_y="Quantidade",
             formato_texto=".0f",
         )
@@ -761,7 +754,8 @@ if pylint_depois is not None:
 else:
 
     st.warning(
-        "O arquivo pylint_depois.json não foi encontrado."
+        f"Arquivo pylint_{Path(arquivo_nome).stem}_depois.json "
+        "não encontrado."
     )
 
 
@@ -769,28 +763,42 @@ else:
 # RESUMO
 # ============================================================
 
-st.subheader("📌 Resumo da refatoração")
+st.subheader("📌 Resumo da análise")
 
-st.markdown(
-    f"""
-    ### `AlignmentWriter.write_file`
+if (
+    media_antes is not None
+    and media_depois is not None
+):
 
-    - Complexidade antes: **50 (F)**
-    - Complexidade depois: **4 (A)**
-    - Redução da complexidade: **92%**
+    reducao = (
+        (media_antes - media_depois)
+        / media_antes
+    ) * 100
 
-    ### Complexidade média
+    st.markdown(
+        f"""
+        ### `{arquivo_nome}`
 
-    - Antes: **21,67 (D)**
-    - Depois: **7,38 (B)**
-    - Redução: **65,96%**
+        - Complexidade média antes:
+          **{media_antes:.2f}**
 
-    ### Maintainability Index
+        - Complexidade média depois:
+          **{media_depois:.2f}**
 
-    - Antes: **32,08 (A)**
-    - Depois: **24,18 (A)**
+        - Redução da complexidade média:
+          **{reducao:.2f}%**
 
-    O índice permaneceu na classificação **A**, embora seu
-    valor numérico tenha diminuído.
-    """
-)
+        - Coesão:
+          **{len(coesao)} classes analisadas**
+
+        - Acoplamento:
+          **{import_linter["status"]}**
+        """
+    )
+
+else:
+
+    st.info(
+        "Ainda não existem dados suficientes "
+        "para gerar o resumo completo."
+    )

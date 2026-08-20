@@ -1,0 +1,13 @@
+{
+    "file": "bed.py",
+    "classes": [
+        {
+            "class": "AlignmentWriter",
+            "line": 26
+        },
+        {
+            "class": "AlignmentIterator",
+            "line": 191
+        }
+    ]
+}

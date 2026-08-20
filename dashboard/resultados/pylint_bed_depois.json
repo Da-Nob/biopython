@@ -1,0 +1,67 @@
+[
+    {
+        "type": "convention",
+        "module": "Bio.Align.bed",
+        "obj": "",
+        "line": 380,
+        "column": 0,
+        "endLine": null,
+        "endColumn": null,
+        "path": "C:\\Programacao\\IFCE\\4-Semestre\\teste e qualidade de softawara\\biopython\\Bio\\Align\\bed.py",
+        "symbol": "missing-final-newline",
+        "message": "Final newline missing",
+        "message-id": "C0304"
+    },
+    {
+        "type": "refactor",
+        "module": "Bio.Align.bed",
+        "obj": "AlignmentWriter._build_fields",
+        "line": 106,
+        "column": 4,
+        "endLine": 106,
+        "endColumn": 21,
+        "path": "C:\\Programacao\\IFCE\\4-Semestre\\teste e qualidade de softawara\\biopython\\Bio\\Align\\bed.py",
+        "symbol": "too-many-locals",
+        "message": "Too many local variables (17/15)",
+        "message-id": "R0914"
+    },
+    {
+        "type": "refactor",
+        "module": "Bio.Align.bed",
+        "obj": "AlignmentWriter._build_fields",
+        "line": 106,
+        "column": 4,
+        "endLine": 106,
+        "endColumn": 21,
+        "path": "C:\\Programacao\\IFCE\\4-Semestre\\teste e qualidade de softawara\\biopython\\Bio\\Align\\bed.py",
+        "symbol": "too-many-return-statements",
+        "message": "Too many return statements (10/6)",
+        "message-id": "R0911"
+    },
+    {
+        "type": "refactor",
+        "module": "Bio.Align.bed",
+        "obj": "AlignmentIterator._read_next_alignment",
+        "line": 327,
+        "column": 4,
+        "endLine": 327,
+        "endColumn": 28,
+        "path": "C:\\Programacao\\IFCE\\4-Semestre\\teste e qualidade de softawara\\biopython\\Bio\\Align\\bed.py",
+        "symbol": "too-many-locals",
+        "message": "Too many local variables (16/15)",
+        "message-id": "R0914"
+    },
+    {
+        "type": "refactor",
+        "module": "Bio.Align.bed",
+        "obj": "AlignmentIterator",
+        "line": 191,
+        "column": 0,
+        "endLine": 191,
+        "endColumn": 23,
+        "path": "C:\\Programacao\\IFCE\\4-Semestre\\teste e qualidade de softawara\\biopython\\Bio\\Align\\bed.py",
+        "symbol": "too-few-public-methods",
+        "message": "Too few public methods (1/2)",
+        "message-id": "R0903"
+    }
+]
