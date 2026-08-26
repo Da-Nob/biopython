@@ -19,6 +19,33 @@ from .Interfaces import _TextIOSource
 from .Interfaces import SequenceIterator
 
 
+def _normalize_consensus_sequence(consensus_seq_str):
+    """Return the ACE consensus sequence as a Seq, mapping '*' gaps to '-' (PRIVATE)."""
+    if "*" not in consensus_seq_str:
+        return Seq(consensus_seq_str)
+    # For consistency with most other file formats, map any * gaps into - gaps.
+    assert "-" not in consensus_seq_str
+    return Seq(consensus_seq_str.replace("*", "-"))
+
+
+def _consensus_quality_scores(consensus_seq, ace_contig):
+    """Return per-base PHRED quality scores, using 0 for consensus gaps (PRIVATE).
+
+    ACE files do not record a base quality for gaps (originally '*' characters)
+    in the consensus sequence, so those positions are assigned a quality of 0.
+    """
+    quals = []
+    i = 0
+    for base in consensus_seq:
+        if base == "-":
+            quals.append(0)
+        else:
+            quals.append(ace_contig.quality[i])
+            i += 1
+    assert i == len(ace_contig.quality)
+    return quals
+
+
 class AceIterator(SequenceIterator):
     """Return SeqRecord objects from an ACE file."""
 
@@ -80,15 +107,9 @@ class AceIterator(SequenceIterator):
             ace_contig = next(self.ace_contigs)
         except StopIteration:
             raise StopIteration from None
+
         # Convert the ACE contig record into a SeqRecord...
-        consensus_seq_str = ace_contig.sequence
-        if "*" in consensus_seq_str:
-            # For consistency with most other file formats, map
-            # any * gaps into - gaps.
-            assert "-" not in consensus_seq_str
-            consensus_seq = Seq(consensus_seq_str.replace("*", "-"))
-        else:
-            consensus_seq = Seq(consensus_seq_str)
+        consensus_seq = _normalize_consensus_sequence(ace_contig.sequence)
 
         # TODO? - Base segments (BS lines) which indicates which read
         # phrap has chosen to be the consensus at a particular position.
@@ -103,16 +124,9 @@ class AceIterator(SequenceIterator):
         # as * characters) in the consensus do not get a quality entry, so
         # we assign a quality of None (zero would be misleading as there may
         # be excellent support for having a gap here).
-        quals = []
-        i = 0
-        for base in consensus_seq:
-            if base == "-":
-                quals.append(0)
-            else:
-                quals.append(ace_contig.quality[i])
-                i += 1
-        assert i == len(ace_contig.quality)
-        seq_record.letter_annotations["phred_quality"] = quals
+        seq_record.letter_annotations["phred_quality"] = _consensus_quality_scores(
+            consensus_seq, ace_contig
+        )
 
         return seq_record
 
