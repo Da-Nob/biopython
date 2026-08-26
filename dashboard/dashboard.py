@@ -114,15 +114,18 @@ def obter_coesao():
 
 @st.cache_data
 def obter_import_linter():
-    """Executa o Import Linter e extrai o resultado do contrato."""
+    """Executa o Import Linter uma única vez e extrai o resultado de TODOS os contratos.
+
+    O projeto define 3 contratos em `.importlinter`: a independência do
+    `bigpsl.py` (já existente) e o acoplamento direto entre `AbiIO.py` e
+    `AceIO.py` (adicionados para esta refatoração).
+    """
     comando = ["lint-imports"]
 
     _, saida = executar_comando(comando)
 
-    status = "N/A"
     arquivos = 0
     dependencias = 0
-    contrato = "BigPsl independence"
 
     match_analise = re.search(
         r"Analyzed\s+(\d+)\s+files,\s+(\d+)\s+dependencies\.",
@@ -133,17 +136,95 @@ def obter_import_linter():
         arquivos = int(match_analise.group(1))
         dependencias = int(match_analise.group(2))
 
-    if "Contracts: 1 kept, 0 broken." in saida:
-        status = "KEPT"
-    elif "Contracts: 0 kept, 1 broken." in saida:
-        status = "BROKEN"
+    # Cada contrato aparece no resumo como "<nome do contrato> KEPT|BROKEN"
+    contratos = dict(
+        re.findall(r"^(.+?)\s+(KEPT|BROKEN)$", saida, flags=re.MULTILINE)
+    )
 
-    return {
-        "contrato": contrato,
-        "status": status,
+    resultado = {
+        "status": contratos.get("BigPsl independence", "N/A"),
         "arquivos": arquivos,
         "dependencias": dependencias,
-    }, saida
+        "contrato": "BigPsl independence",
+        "contratos": contratos,
+    }
+
+    return resultado, saida
+
+
+@st.cache_data
+def obter_radon_cc(caminho_arquivo):
+    """Executa `radon cc -j` e retorna a lista de blocos (funções/métodos) do arquivo."""
+    comando = ["radon", "cc", caminho_arquivo, "-j"]
+    _, saida = executar_comando(comando)
+
+    try:
+        dados = json.loads(saida)
+    except json.JSONDecodeError:
+        return []
+
+    blocos = dados.get(caminho_arquivo, [])
+    # O JSON do Radon já lista funções e métodos no nível superior (as
+    # classes aparecem à parte, com os mesmos métodos aninhados em
+    # "methods"), então basta filtrar por tipo para não duplicar linhas.
+    return [b for b in blocos if b.get("type") in ("function", "method")]
+
+
+@st.cache_data
+def obter_radon_mi(caminho_arquivo):
+    """Executa `radon mi -j` e retorna (valor do MI, rank) do arquivo."""
+    comando = ["radon", "mi", caminho_arquivo, "-j"]
+    _, saida = executar_comando(comando)
+
+    try:
+        dados = json.loads(saida)
+    except json.JSONDecodeError:
+        return None, None
+
+    info = dados.get(caminho_arquivo)
+    if not info:
+        return None, None
+
+    return info["mi"], info["rank"]
+
+
+@st.cache_data
+def obter_pylint(caminho_arquivo):
+    """Executa o Pylint (--output-format=json) e retorna a lista de ocorrências."""
+    comando = ["pylint", caminho_arquivo, "--output-format=json"]
+    _, saida = executar_comando(comando)
+
+    try:
+        return json.loads(saida)
+    except json.JSONDecodeError:
+        return []
+
+
+@st.cache_data
+def obter_coesao_arquivos(caminhos):
+    """Executa o Cohesion para uma lista de arquivos e extrai a coesão das classes."""
+    comando = ["cohesion", "--files", *caminhos, "--verbose"]
+
+    _, saida = executar_comando(comando)
+
+    classes = {}
+    classe_atual = None
+
+    for linha in saida.splitlines():
+        linha = linha.strip()
+
+        match_classe = re.match(r"Class:\s+(.+?)\s+\(\d+:\d+\)", linha)
+        if match_classe:
+            classe_atual = match_classe.group(1)
+            continue
+
+        if linha.startswith("Total:") and classe_atual:
+            match_total = re.search(r"Total:\s+([\d.]+)%", linha)
+            if match_total:
+                classes[classe_atual] = float(match_total.group(1))
+                classe_atual = None
+
+    return classes, saida
 
 
 def criar_grafico_barra(
@@ -792,5 +873,502 @@ st.markdown(
 
     O índice permaneceu na classificação **A**, embora seu
     valor numérico tenha diminuído.
+    """
+)
+
+
+# ============================================================
+# SEÇÃO 2 — Bio/SeqIO/AbiIO.py e Bio/SeqIO/AceIO.py
+# ============================================================
+#
+# Ao contrário da seção do bigpsl.py (que usa valores "depois" salvos em
+# JSON), aqui os resultados "depois" são obtidos executando Radon, Pylint,
+# Cohesion e Import Linter AO VIVO contra o código já refatorado em disco.
+# Os valores "antes" foram medidos manualmente antes da refatoração e ficam
+# fixos como constantes, pois o código anterior não existe mais no repositório.
+
+st.markdown("---")
+st.title("🧬 Refatoração — Bio/SeqIO/AbiIO.py e Bio/SeqIO/AceIO.py")
+
+st.markdown(
+    """
+    **Projeto:** Análise e refatoração do Biopython
+    **Arquivos:** `Bio/SeqIO/AbiIO.py` (parser do formato ABI) e
+    `Bio/SeqIO/AceIO.py` (parser do formato ACE)
+
+    Os valores **"depois"** desta seção são calculados executando as
+    ferramentas ao vivo (subprocess) contra o código já refatorado.
+    Os valores **"antes"** foram registrados antes da refatoração.
+    """
+)
+
+CAMINHO_ABI = "Bio/SeqIO/AbiIO.py"
+CAMINHO_ACE = "Bio/SeqIO/AceIO.py"
+
+# --- valores "antes", medidos com Radon/Pylint antes de tocar no código ---
+abi_next_antes = 20
+ace_next_antes = 7
+
+abi_media_antes = 6.857142857142857
+ace_media_antes = 4.0
+
+mi_abi_antes = 49.55174187106885
+mi_ace_antes = 67.28009153911344
+
+pylint_abi_antes = 33  # 25 convention (majoritariamente line-too-long) + 8 refactor
+pylint_ace_antes = 2  # 1 warning (fixme) + 1 convention (invalid-name do módulo)
+
+cohesion_abi_antes = 66.67
+cohesion_ace_antes = 50.0
+
+# --- valores "depois", obtidos ao vivo ---
+blocos_abi = obter_radon_cc(CAMINHO_ABI)
+blocos_ace = obter_radon_cc(CAMINHO_ACE)
+
+mi_abi_depois, mi_abi_rank = obter_radon_mi(CAMINHO_ABI)
+mi_ace_depois, mi_ace_rank = obter_radon_mi(CAMINHO_ACE)
+
+pylint_abi_depois = obter_pylint(CAMINHO_ABI)
+pylint_ace_depois = obter_pylint(CAMINHO_ACE)
+
+coesao_seqio, saida_cohesion_seqio = obter_coesao_arquivos((CAMINHO_ABI, CAMINHO_ACE))
+cohesion_abi_depois = coesao_seqio.get("AbiIterator", 0)
+cohesion_ace_depois = coesao_seqio.get("AceIterator", 0)
+
+abi_next_depois = next(
+    (b["complexity"] for b in blocos_abi if b["name"] == "__next__"), 0
+)
+ace_next_depois = next(
+    (b["complexity"] for b in blocos_ace if b["name"] == "__next__"), 0
+)
+
+abi_media_depois = (
+    sum(b["complexity"] for b in blocos_abi) / len(blocos_abi) if blocos_abi else 0
+)
+ace_media_depois = (
+    sum(b["complexity"] for b in blocos_ace) / len(blocos_ace) if blocos_ace else 0
+)
+
+import_linter_contratos = import_linter_resultado["contratos"]
+status_abi_forbidden = import_linter_contratos.get(
+    "AbiIO does not couple to AceIO", "N/A"
+)
+status_ace_forbidden = import_linter_contratos.get(
+    "AceIO does not couple to AbiIO", "N/A"
+)
+
+
+# ------------------------------------------------------------------
+# CARDS — visão geral
+# ------------------------------------------------------------------
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    "AbiIterator.__next__ (CC)",
+    f"{abi_next_depois}",
+    delta=f"{abi_next_depois - abi_next_antes}",
+)
+col2.metric(
+    "AceIterator.__next__ (CC)",
+    f"{ace_next_depois}",
+    delta=f"{ace_next_depois - ace_next_antes}",
+)
+col3.metric(
+    "MI AbiIO.py",
+    f"{mi_abi_depois:.2f}" if mi_abi_depois is not None else "N/A",
+    delta=f"{(mi_abi_depois - mi_abi_antes):.2f}" if mi_abi_depois is not None else None,
+)
+col4.metric(
+    "MI AceIO.py",
+    f"{mi_ace_depois:.2f}" if mi_ace_depois is not None else "N/A",
+    delta=f"{(mi_ace_depois - mi_ace_antes):.2f}" if mi_ace_depois is not None else None,
+)
+
+
+# ------------------------------------------------------------------
+# GRÁFICO — Complexidade do método mais crítico (__next__) de cada classe
+# ------------------------------------------------------------------
+
+st.subheader("1. Complexidade do método `__next__` (Radon CC)")
+
+col_a, col_b = st.columns(2)
+
+with col_a:
+    fig_abi_next = criar_grafico_barra(
+        x=["Antes", "Depois"],
+        y=[abi_next_antes, abi_next_depois],
+        titulo="AbiIterator.__next__",
+        nome_eixo_y="Complexidade ciclomática",
+        formato_texto=".0f",
+        altura=420,
+    )
+    st.plotly_chart(fig_abi_next, use_container_width=True)
+
+with col_b:
+    fig_ace_next = criar_grafico_barra(
+        x=["Antes", "Depois"],
+        y=[ace_next_antes, ace_next_depois],
+        titulo="AceIterator.__next__",
+        nome_eixo_y="Complexidade ciclomática",
+        formato_texto=".0f",
+        altura=420,
+    )
+    st.plotly_chart(fig_ace_next, use_container_width=True)
+
+
+# ------------------------------------------------------------------
+# GRÁFICO — Complexidade média do arquivo
+# ------------------------------------------------------------------
+
+st.subheader("2. Complexidade ciclomática média do arquivo (Radon CC)")
+
+col_a, col_b = st.columns(2)
+
+with col_a:
+    fig_abi_media = criar_grafico_barra(
+        x=["Antes", "Depois"],
+        y=[abi_media_antes, abi_media_depois],
+        titulo="Complexidade média - AbiIO.py",
+        nome_eixo_y="Complexidade média",
+        formato_texto=".2f",
+        altura=420,
+    )
+    st.plotly_chart(fig_abi_media, use_container_width=True)
+
+with col_b:
+    fig_ace_media = criar_grafico_barra(
+        x=["Antes", "Depois"],
+        y=[ace_media_antes, ace_media_depois],
+        titulo="Complexidade média - AceIO.py",
+        nome_eixo_y="Complexidade média",
+        formato_texto=".2f",
+        altura=420,
+    )
+    st.plotly_chart(fig_ace_media, use_container_width=True)
+
+
+# ------------------------------------------------------------------
+# GRÁFICO — Maintainability Index
+# ------------------------------------------------------------------
+
+st.subheader("3. Maintainability Index (Radon MI)")
+
+df_mi_seqio = pd.DataFrame(
+    {
+        "Arquivo": ["AbiIO.py", "AbiIO.py", "AceIO.py", "AceIO.py"],
+        "Estado": ["Antes", "Depois", "Antes", "Depois"],
+        "MI": [
+            mi_abi_antes,
+            mi_abi_depois if mi_abi_depois is not None else 0,
+            mi_ace_antes,
+            mi_ace_depois if mi_ace_depois is not None else 0,
+        ],
+    }
+)
+
+fig_mi_seqio = go.Figure()
+for arquivo_nome, cor in [("AbiIO.py", "#B18AEF"), ("AceIO.py", "#7ED6A5")]:
+    subset = df_mi_seqio[df_mi_seqio["Arquivo"] == arquivo_nome]
+    fig_mi_seqio.add_trace(
+        go.Bar(
+            x=subset["Estado"] + " (" + subset["Arquivo"] + ")",
+            y=subset["MI"],
+            name=arquivo_nome,
+            text=subset["MI"],
+            texttemplate="%{text:.2f}",
+            textposition="outside",
+            marker=dict(color=cor, line=dict(width=0)),
+            width=0.35,
+        )
+    )
+
+fig_mi_seqio.update_layout(
+    title=dict(text="Maintainability Index - AbiIO.py x AceIO.py", x=0.5, xanchor="center"),
+    yaxis=dict(title="MI", showgrid=True, gridcolor="#E5E5E5", griddash="dot"),
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    font=dict(family="Arial", size=14, color="#333333"),
+    margin=dict(l=60, r=30, t=80, b=70),
+    showlegend=False,
+    height=480,
+)
+
+st.plotly_chart(fig_mi_seqio, use_container_width=True)
+
+st.caption(
+    "Ambos os arquivos já estavam classificados como **A** no MI antes da "
+    "refatoração; a melhora aqui reflete principalmente a redução da "
+    "complexidade ciclomática, mesmo com um pequeno aumento de linhas de "
+    "código (funções extraídas)."
+)
+
+
+# ------------------------------------------------------------------
+# GRÁFICO — Coesão das classes (Cohesion)
+# ------------------------------------------------------------------
+
+st.subheader("4. Coesão das classes (Cohesion)")
+
+df_cohesion_seqio = pd.DataFrame(
+    {
+        "Classe": ["AbiIterator", "AbiIterator", "AceIterator", "AceIterator"],
+        "Estado": ["Antes", "Depois", "Antes", "Depois"],
+        "Coesão (%)": [
+            cohesion_abi_antes,
+            cohesion_abi_depois,
+            cohesion_ace_antes,
+            cohesion_ace_depois,
+        ],
+    }
+)
+
+fig_cohesion_seqio = go.Figure()
+for classe, cor in [("AbiIterator", "#B18AEF"), ("AceIterator", "#7ED6A5")]:
+    subset = df_cohesion_seqio[df_cohesion_seqio["Classe"] == classe]
+    fig_cohesion_seqio.add_trace(
+        go.Bar(
+            x=subset["Estado"] + " (" + subset["Classe"] + ")",
+            y=subset["Coesão (%)"],
+            name=classe,
+            text=subset["Coesão (%)"],
+            texttemplate="%{text:.2f}%",
+            textposition="outside",
+            marker=dict(color=cor, line=dict(width=0)),
+            width=0.35,
+        )
+    )
+
+fig_cohesion_seqio.update_layout(
+    title=dict(text="Coesão das classes - AbiIterator x AceIterator", x=0.5, xanchor="center"),
+    yaxis=dict(title="Coesão (%)", range=[0, 100], showgrid=True, gridcolor="#E5E5E5"),
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    font=dict(size=14, color="#333333"),
+    margin=dict(l=60, r=30, t=70, b=60),
+    showlegend=False,
+    height=480,
+)
+
+st.plotly_chart(fig_cohesion_seqio, use_container_width=True)
+
+st.info(
+    "A coesão não mudou com a refatoração: o atributo de classe `modes` "
+    "(exigido pela interface `SequenceIterator`, sem relação com o estado "
+    "de cada instância) é contado pelo Cohesion como uma variável não "
+    "usada em `__init__`/`__next__`, o que já limitava o teto do indicador "
+    "antes da refatoração. A lógica extraída virou funções de módulo "
+    "(não métodos), então a proporção interna da classe se manteve igual."
+)
+
+if not coesao_seqio:
+    st.warning(
+        "Não foi possível obter os resultados do Cohesion. "
+        "Verifique se o comando 'cohesion' está disponível no ambiente virtual."
+    )
+
+
+# ------------------------------------------------------------------
+# GRÁFICO — Complexidade de cada função/método após a refatoração
+# ------------------------------------------------------------------
+
+st.subheader("5. Complexidade por função/método após a refatoração (Radon CC)")
+
+registros_seqio = []
+for arquivo_nome, blocos in [("AbiIO.py", blocos_abi), ("AceIO.py", blocos_ace)]:
+    for bloco in blocos:
+        nome = bloco["name"]
+        if bloco.get("classname"):
+            nome = f"{bloco['classname']}.{nome}"
+        registros_seqio.append(
+            {
+                "Arquivo": arquivo_nome,
+                "Função/Método": nome,
+                "Complexidade": bloco["complexity"],
+                "Classificação": classe_radon(bloco["complexity"]),
+            }
+        )
+
+if registros_seqio:
+    df_seqio_metodos = pd.DataFrame(registros_seqio).sort_values(
+        "Complexidade", ascending=False
+    )
+
+    fig_seqio_metodos = go.Figure()
+    for arquivo_nome, cor in [("AbiIO.py", "#B18AEF"), ("AceIO.py", "#7ED6A5")]:
+        subset = df_seqio_metodos[df_seqio_metodos["Arquivo"] == arquivo_nome]
+        fig_seqio_metodos.add_trace(
+            go.Bar(
+                x=subset["Complexidade"],
+                y=subset["Função/Método"],
+                orientation="h",
+                name=arquivo_nome,
+                text=subset["Complexidade"],
+                texttemplate="%{text:.0f}",
+                textposition="outside",
+                marker=dict(color=cor, line=dict(width=0)),
+            )
+        )
+
+    fig_seqio_metodos.update_layout(
+        title=dict(
+            text="Complexidade por função/método - Depois da refatoração",
+            x=0.5,
+            xanchor="center",
+            font=dict(size=18, color="#333333"),
+        ),
+        xaxis=dict(title="Complexidade", showgrid=True, gridcolor="#E5E5E5", griddash="dot"),
+        yaxis=dict(title="", autorange="reversed"),
+        barmode="group",
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(family="Arial", size=14, color="#333333"),
+        margin=dict(l=220, r=60, t=80, b=70),
+        legend=dict(orientation="h", y=-0.12),
+        height=650,
+    )
+
+    st.plotly_chart(fig_seqio_metodos, use_container_width=True)
+
+    st.dataframe(df_seqio_metodos, use_container_width=True, hide_index=True)
+else:
+    st.warning("Não foi possível obter os dados de complexidade do Radon.")
+
+
+# ------------------------------------------------------------------
+# GRÁFICO — Acoplamento (Import Linter)
+# ------------------------------------------------------------------
+
+st.subheader("6. Acoplamento entre AbiIO.py e AceIO.py (Import Linter)")
+
+st.markdown(
+    """
+    Foram adicionados dois contratos do tipo `forbidden` ao `.importlinter`,
+    com `allow_indirect_imports = True` para ignorar a cadeia indireta que
+    passa por `Bio.SeqRecord -> Bio.SeqIO` (comum a todo módulo de formato
+    do `Bio.SeqIO`) e checar apenas o acoplamento **direto** entre os dois
+    parsers irmãos.
+    """
+)
+
+col1, col2, col3 = st.columns(3)
+col1.metric("AbiIO → AceIO", status_abi_forbidden)
+col2.metric("AceIO → AbiIO", status_ace_forbidden)
+col3.metric("Dependências analisadas", import_linter_dependencies)
+
+df_linter_seqio = pd.DataFrame(
+    {
+        "Contrato": [
+            "AbiIO does not couple to AceIO",
+            "AceIO does not couple to AbiIO",
+        ],
+        "Status": [status_abi_forbidden, status_ace_forbidden],
+    }
+)
+st.dataframe(df_linter_seqio, use_container_width=True, hide_index=True)
+
+if "BROKEN" in (status_abi_forbidden, status_ace_forbidden):
+    st.error("O Import Linter encontrou um acoplamento direto entre AbiIO e AceIO.")
+elif "N/A" in (status_abi_forbidden, status_ace_forbidden):
+    st.warning("Não foi possível interpretar o resultado do Import Linter.")
+else:
+    st.success("AbiIO.py e AceIO.py não importam um ao outro diretamente.")
+
+
+# ------------------------------------------------------------------
+# GRÁFICO — Pylint
+# ------------------------------------------------------------------
+
+st.subheader("7. Ocorrências do Pylint — antes x depois")
+
+df_pylint_antes_depois = pd.DataFrame(
+    {
+        "Arquivo": ["AbiIO.py", "AbiIO.py", "AceIO.py", "AceIO.py"],
+        "Estado": ["Antes", "Depois", "Antes", "Depois"],
+        "Ocorrências": [
+            pylint_abi_antes,
+            len(pylint_abi_depois),
+            pylint_ace_antes,
+            len(pylint_ace_depois),
+        ],
+    }
+)
+
+fig_pylint_seqio = go.Figure()
+for arquivo_nome, cor in [("AbiIO.py", "#B18AEF"), ("AceIO.py", "#7ED6A5")]:
+    subset = df_pylint_antes_depois[df_pylint_antes_depois["Arquivo"] == arquivo_nome]
+    fig_pylint_seqio.add_trace(
+        go.Bar(
+            x=subset["Estado"] + " (" + subset["Arquivo"] + ")",
+            y=subset["Ocorrências"],
+            name=arquivo_nome,
+            text=subset["Ocorrências"],
+            texttemplate="%{text:.0f}",
+            textposition="outside",
+            marker=dict(color=cor, line=dict(width=0)),
+            width=0.35,
+        )
+    )
+
+fig_pylint_seqio.update_layout(
+    title=dict(text="Ocorrências do Pylint - antes x depois", x=0.5, xanchor="center"),
+    yaxis=dict(title="Ocorrências", showgrid=True, gridcolor="#E5E5E5", griddash="dot"),
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    font=dict(family="Arial", size=14, color="#333333"),
+    margin=dict(l=60, r=30, t=80, b=70),
+    showlegend=False,
+    height=460,
+)
+
+st.plotly_chart(fig_pylint_seqio, use_container_width=True)
+
+if pylint_abi_depois:
+    st.markdown("**AbiIO.py — ocorrências restantes (depois):**")
+    st.dataframe(pd.DataFrame(pylint_abi_depois), use_container_width=True, hide_index=True)
+
+if pylint_ace_depois:
+    st.markdown("**AceIO.py — ocorrências restantes (depois):**")
+    st.dataframe(pd.DataFrame(pylint_ace_depois), use_container_width=True, hide_index=True)
+
+st.caption(
+    "As ocorrências restantes em ambos os arquivos são o "
+    "`invalid-name` do nome do módulo (`AbiIO`/`AceIO`) e, em `AceIO.py`, "
+    "um `fixme` (TODO) intencional — ambos mantidos de propósito, "
+    "conforme justificado no relatório de refatoração."
+)
+
+
+# ------------------------------------------------------------------
+# RESUMO
+# ------------------------------------------------------------------
+
+st.subheader("📌 Resumo da refatoração — AbiIO.py e AceIO.py")
+
+st.markdown(
+    f"""
+    ### `AbiIterator.__next__`
+    - Complexidade antes: **{abi_next_antes} (C)**
+    - Complexidade depois: **{abi_next_depois} ({classe_radon(abi_next_depois)})**
+
+    ### `AceIterator.__next__`
+    - Complexidade antes: **{ace_next_antes} (B)**
+    - Complexidade depois: **{ace_next_depois} ({classe_radon(ace_next_depois)})**
+
+    ### Complexidade média
+    - AbiIO.py: **{abi_media_antes:.2f}** → **{abi_media_depois:.2f}**
+    - AceIO.py: **{ace_media_antes:.2f}** → **{ace_media_depois:.2f}**
+
+    ### Maintainability Index
+    - AbiIO.py: **{mi_abi_antes:.2f} (A)** → **{mi_abi_depois:.2f} ({mi_abi_rank})**
+    - AceIO.py: **{mi_ace_antes:.2f} (A)** → **{mi_ace_depois:.2f} ({mi_ace_rank})**
+
+    ### Pylint
+    - AbiIO.py: **{pylint_abi_antes} ocorrências** → **{len(pylint_abi_depois)} ocorrência(s)**
+    - AceIO.py: **{pylint_ace_antes} ocorrências** → **{len(pylint_ace_depois)} ocorrência(s)**
+
+    ### Acoplamento (Import Linter)
+    - AbiIO → AceIO: **{status_abi_forbidden}**
+    - AceIO → AbiIO: **{status_ace_forbidden}**
     """
 )
