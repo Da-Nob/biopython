@@ -4,26 +4,13 @@
 # choice of the "Biopython License Agreement" or the "BSD 3-Clause License".
 # Please see the LICENSE file that should have been included as part of this
 # package.
+
 """Bio.Align support for BED (Browser Extensible Data) files.
 
-The Browser Extensible Data (BED) format, stores a series of pairwise
-alignments in a single file. Typically they are used for transcript to genome
-alignments. BED files store the alignment positions and alignment scores, but
-not the aligned sequences.
-
-See http://genome.ucsc.edu/FAQ/FAQformat.html#format1
-
-You are expected to use this module via the Bio.Align functions.
-
-Coordinates in the BED format are defined in terms of zero-based start
-positions (like Python) and aligning region sizes.
-
-A minimal aligned region of length one and starting at first position in the
-source sequence would have ``start == 0`` and ``size == 1``.
-
-As we can see in this example, ``start + size`` will give one more than the
-zero-based end position. We can therefore manipulate ``start`` and
-``start + size`` as python list slice boundaries.
+The Browser Extensible Data (BED) format stores a series of pairwise
+alignments in a single file. Typically, they are used for transcript-to-genome
+alignments. BED files store the alignment positions and alignment scores,
+but not the aligned sequences.
 """
 
 import sys
@@ -37,223 +24,357 @@ from Bio.SeqRecord import SeqRecord
 
 
 class AlignmentWriter(interfaces.AlignmentWriter):
-    """Alignment file writer for the Browser Extensible Data (BED) file format."""
+    """Alignment file writer for the Browser Extensible Data (BED) format."""
 
-    def __init__(self, target, bedN=12):
+    def __init__(self, target, bed_n=12):
         """Create an AlignmentWriter object.
 
         Arguments:
-         - target    - output stream or file name
-         - bedN      - number of columns in the BED file.
-                       This must be between 3 and 12; default value is 12.
-
+         - target - output stream or file name
+         - bed_n - number of columns in the BED file.
+                   This must be between 3 and 12; default value is 12.
         """
-        if bedN < 3 or bedN > 12:
-            raise ValueError("bedN must be between 3 and 12")
+        if not 3 <= bed_n <= 12:
+            raise ValueError("bed_n must be between 3 and 12")
+
         super().__init__(target)
-        self.bedN = bedN
+        self.bed_n = bed_n
+
+    @staticmethod
+    def _get_identifier(record, default):
+        """Return the record identifier or a default value."""
+        try:
+            identifier = record.id
+        except AttributeError:
+            return default
+
+        return default if identifier is None else identifier
+
+    @staticmethod
+    def _get_coordinates(alignment):
+        """Return normalized alignment coordinates."""
+        coordinates = alignment.coordinates
+
+        if not coordinates.size:
+            return None
+
+        if coordinates[0, 0] > coordinates[0, -1]:
+            return coordinates[:, ::-1]
+
+        return coordinates
+
+    @staticmethod
+    def _get_strand(coordinates):
+        """Return the BED strand from the alignment coordinates."""
+        if coordinates[1, 0] > coordinates[1, -1]:
+            return "-"
+
+        return "+"
+
+    @staticmethod
+    def _get_blocks(coordinates):
+        """Return BED block sizes and block starts."""
+        block_sizes = []
+        block_starts = []
+
+        target_start, query_start = coordinates[:, 0]
+
+        for target_end, query_end in coordinates[:, 1:].transpose():
+            if target_start == target_end:
+                query_start = query_end
+                continue
+
+            if query_start == query_end:
+                target_start = target_end
+                continue
+
+            block_size = target_end - target_start
+            block_starts.append(target_start)
+            block_sizes.append(block_size)
+
+            target_start = target_end
+            query_start = query_end
+
+        if not block_starts:
+            return [], [], target_start, target_start
+
+        chrom_start = block_starts[0]
+        chrom_end = block_starts[-1] + block_sizes[-1]
+
+        return block_sizes, block_starts, chrom_start, chrom_end
+
+    def _build_fields(self, alignment, chrom, strand, blocks):
+        """Build BED fields according to the requested BED column count."""
+        block_sizes, block_starts, chrom_start, chrom_end = blocks
+        fields = [chrom, str(chrom_start), str(chrom_end)]
+
+        if self.bed_n == 3:
+            return fields
+
+        query = alignment.sequences[1]
+        name = self._get_identifier(query, "query")
+        fields.append(name)
+
+        if self.bed_n == 4:
+            return fields
+
+        score = getattr(alignment, "score", 0)
+        fields.append(format(score, "g"))
+
+        if self.bed_n == 5:
+            return fields
+
+        fields.append(strand)
+
+        if self.bed_n == 6:
+            return fields
+
+        thick_start = getattr(alignment, "thickStart", chrom_start)
+        fields.append(str(thick_start))
+
+        if self.bed_n == 7:
+            return fields
+
+        thick_end = getattr(alignment, "thickEnd", chrom_end)
+        fields.append(str(thick_end))
+
+        if self.bed_n == 8:
+            return fields
+
+        item_rgb = getattr(alignment, "itemRgb", "0")
+        fields.append(str(item_rgb))
+
+        if self.bed_n == 9:
+            return fields
+
+        fields.append(str(len(block_sizes)))
+
+        if self.bed_n == 10:
+            return fields
+
+        fields.append(",".join(map(str, block_sizes)) + ",")
+
+        if self.bed_n == 11:
+            return fields
+
+        block_offsets = [
+            block_start - chrom_start for block_start in block_starts
+        ]
+        fields.append(",".join(map(str, block_offsets)) + ",")
+
+        return fields
 
     def format_alignment(self, alignment):
         """Return a string with one alignment formatted as a BED line."""
         if not isinstance(alignment, Alignment):
             raise TypeError("Expected an Alignment object")
-        coordinates = alignment.coordinates
-        if not coordinates.size:  # alignment consists of gaps only
+
+        coordinates = self._get_coordinates(alignment)
+
+        if coordinates is None:
             return ""
-        bedN = self.bedN
-        target, query = alignment.sequences
-        try:
-            chrom = target.id
-        except AttributeError:
-            chrom = "target"
-        else:
-            if chrom is None:
-                chrom = "target"
-        if coordinates[0, 0] > coordinates[0, -1]:
-            # read the alignment right-to-left to be consistent with BED
-            coordinates = coordinates[:, ::-1]
-        if coordinates[1, 0] > coordinates[1, -1]:
-            # DNA/RNA mapped to reverse strand of DNA/RNA
-            strand = "-"
-        else:
-            # mapped to forward strand
-            strand = "+"
-        # variable names follow those in the BED file format specification
-        blockSizes = []
-        blockStarts = []
-        tStart, qStart = coordinates[:, 0]
-        for tEnd, qEnd in coordinates[:, 1:].transpose():
-            if tStart == tEnd:
-                qStart = qEnd
-            elif qStart == qEnd:
-                tStart = tEnd
-            else:
-                blockSize = tEnd - tStart
-                blockStarts.append(tStart)
-                blockSizes.append(blockSize)
-                tStart = tEnd
-                qStart = qEnd
-        try:
-            chromStart = blockStarts[0]  # start of alignment in target
-            chromEnd = blockStarts[-1] + blockSize  # end of alignment in target
-        except IndexError:  # no aligned blocks
-            chromStart = chromEnd = tStart
-        fields = [chrom, str(chromStart), str(chromEnd)]
-        if bedN == 3:
-            return "\t".join(fields) + "\n"
-        try:
-            name = query.id
-        except AttributeError:
-            name = "query"
-        else:
-            if name is None:
-                name = "query"
-        fields.append(name)
-        if bedN == 4:
-            return "\t".join(fields) + "\n"
-        try:
-            score = alignment.score
-        except AttributeError:
-            score = 0
-        fields.append(format(score, "g"))
-        if bedN == 5:
-            return "\t".join(fields) + "\n"
-        fields.append(strand)
-        if bedN == 6:
-            return "\t".join(fields) + "\n"
-        try:
-            thickStart = alignment.thickStart
-        except AttributeError:
-            thickStart = chromStart
-        fields.append(str(thickStart))
-        if bedN == 7:
-            return "\t".join(fields) + "\n"
-        try:
-            thickEnd = alignment.thickEnd
-        except AttributeError:
-            thickEnd = chromEnd
-        fields.append(str(thickEnd))
-        if bedN == 8:
-            return "\t".join(fields) + "\n"
-        try:
-            itemRgb = alignment.itemRgb
-        except AttributeError:
-            itemRgb = "0"
-        fields.append(str(itemRgb))
-        if bedN == 9:
-            return "\t".join(fields) + "\n"
-        blockCount = len(blockSizes)
-        fields.append(str(blockCount))
-        if bedN == 10:
-            return "\t".join(fields) + "\n"
-        fields.append(",".join(map(str, blockSizes)) + ",")
-        if bedN == 11:
-            return "\t".join(fields) + "\n"
-        blockStarts -= chromStart
-        fields.append(",".join(map(str, blockStarts)) + ",")
+
+        chrom = self._get_identifier(alignment.sequences[0], "target")
+        strand = self._get_strand(coordinates)
+        blocks = self._get_blocks(coordinates)
+
+        fields = self._build_fields(
+            alignment,
+            chrom,
+            strand,
+            blocks,
+        )
+
         return "\t".join(fields) + "\n"
 
 
 class AlignmentIterator(interfaces.AlignmentIterator):
     """Alignment iterator for Browser Extensible Data (BED) files.
 
-    Each line in the file contains one pairwise alignment, which are loaded
-    and returned incrementally.  Additional alignment information is stored as
-    attributes of each alignment.
+    Each line in the file contains one pairwise alignment, which is loaded
+    and returned incrementally. Additional alignment information is stored
+    as attributes of each alignment.
     """
 
     fmt = "BED"
 
-    def _read_next_alignment(self, stream):
-        for line in stream:
-            # note that we cannot extract one line by calling next, as stream
-            # may be iterable but not an iterator (for example, TemporaryFile
-            # or NamedTemporaryFile objects in tempfile).
-            words = line.split()
-            bedN = len(words)
-            if bedN < 3 or bedN > 12:
-                raise ValueError("expected between 3 and 12 columns, found %d" % bedN)
-            chrom = words[0]
-            chromStart = int(words[1])
-            chromEnd = int(words[2])
-            if bedN > 3:
-                name = words[3]
-            else:
-                name = None
-            if bedN > 5:
-                strand = words[5]
-            else:
-                strand = "+"
-            if bedN > 9:
-                blockCount = int(words[9])
-                blockSizes = [
-                    int(blockSize) for blockSize in words[10].rstrip(",").split(",")
-                ]
-                blockStarts = [
-                    int(blockStart) for blockStart in words[11].rstrip(",").split(",")
-                ]
-                if len(blockSizes) != blockCount:
-                    raise ValueError(
-                        "Inconsistent number of block sizes (%d found, expected %d)"
-                        % (len(blockSizes), blockCount)
-                    )
-                if len(blockStarts) != blockCount:
-                    raise ValueError(
-                        "Inconsistent number of block start positions (%d found, expected %d)"
-                        % (len(blockStarts), blockCount)
-                    )
-                blockSizes = np.array(blockSizes)
-                blockStarts = np.array(blockStarts)
-                tPosition = 0
-                qPosition = 0
-                coordinates = [[tPosition, qPosition]]
-                for blockSize, blockStart in zip(blockSizes, blockStarts):
-                    if blockStart != tPosition:
-                        coordinates.append([blockStart, qPosition])
-                        tPosition = blockStart
-                    tPosition += blockSize
-                    qPosition += blockSize
-                    coordinates.append([tPosition, qPosition])
-                coordinates = np.array(coordinates, np.intp).transpose()
-                qSize = sum(blockSizes)
-            else:
-                blockSize = chromEnd - chromStart
-                coordinates = np.array([[0, blockSize], [0, blockSize]], np.intp)
-                qSize = blockSize
-            coordinates[0, :] += chromStart
-            query_sequence = Seq(None, length=qSize)
-            query_record = SeqRecord(query_sequence, id=name, description="")
-            target_sequence = Seq(None, length=sys.maxsize)
-            target_record = SeqRecord(target_sequence, id=chrom, description="")
-            records = [target_record, query_record]
-            if strand == "-":
-                coordinates[1, :] = qSize - coordinates[1, :]
-            if chromStart != coordinates[0, 0]:
-                raise ValueError(
-                    "Inconsistent chromStart found (%d, expected %d)"
-                    % (chromStart, coordinates[0, 0])
-                )
-            if chromEnd != coordinates[0, -1]:
-                raise ValueError(
-                    "Inconsistent chromEnd found (%d, expected %d)"
-                    % (chromEnd, coordinates[0, -1])
-                )
-            alignment = Alignment(records, coordinates)
-            if bedN <= 4:
-                return alignment
-            score = words[4]
-            try:
-                score = float(score)
-            except ValueError:
-                pass
-            alignment.score = score
-            if bedN <= 6:
-                return alignment
-            alignment.thickStart = int(words[6])
-            if bedN <= 7:
-                return alignment
-            alignment.thickEnd = int(words[7])
-            if bedN <= 8:
-                return alignment
-            alignment.itemRgb = words[8]
+    @staticmethod
+    def _parse_blocks(words):
+        """Parse BED block sizes and starts."""
+        block_count = int(words[9])
+
+        block_sizes = [
+            int(size) for size in words[10].rstrip(",").split(",")
+        ]
+        block_starts = [
+            int(start) for start in words[11].rstrip(",").split(",")
+        ]
+
+        if len(block_sizes) != block_count:
+            raise ValueError(
+                "Inconsistent number of block sizes "
+                f"({len(block_sizes)} found, expected {block_count})"
+            )
+
+        if len(block_starts) != block_count:
+            raise ValueError(
+                "Inconsistent number of block start positions "
+                f"({len(block_starts)} found, expected {block_count})"
+            )
+
+        return np.array(block_sizes), np.array(block_starts)
+
+    @staticmethod
+    def _build_block_coordinates(block_sizes, block_starts):
+        """Build alignment coordinates from BED blocks."""
+        target_position = 0
+        query_position = 0
+        coordinates = [[target_position, query_position]]
+
+        for block_size, block_start in zip(block_sizes, block_starts):
+            if block_start != target_position:
+                coordinates.append([block_start, query_position])
+                target_position = block_start
+
+            target_position += block_size
+            query_position += block_size
+
+            coordinates.append([target_position, query_position])
+
+        return np.array(coordinates, np.intp).transpose()
+
+    @staticmethod
+    def _get_basic_coordinates(chrom_start, chrom_end):
+        """Create coordinates for a BED record without blocks."""
+        block_size = chrom_end - chrom_start
+        coordinates = np.array(
+            [[0, block_size], [0, block_size]],
+            np.intp,
+        )
+
+        return coordinates, block_size
+
+    @staticmethod
+    def _validate_coordinates(
+        coordinates,
+        chrom_start,
+        chrom_end,
+    ):
+        """Validate BED chromosome coordinates."""
+        if chrom_start != coordinates[0, 0]:
+            raise ValueError(
+                "Inconsistent chromStart found "
+                f"({chrom_start}, expected {coordinates[0, 0]})"
+            )
+
+        if chrom_end != coordinates[0, -1]:
+            raise ValueError(
+                "Inconsistent chromEnd found "
+                f"({chrom_end}, expected {coordinates[0, -1]})"
+            )
+
+    @staticmethod
+    def _create_records(chrom, name, query_size):
+        """Create query and target sequence records."""
+        query_sequence = Seq(None, length=query_size)
+        query_record = SeqRecord(
+            query_sequence,
+            id=name,
+            description="",
+        )
+
+        target_sequence = Seq(None, length=sys.maxsize)
+        target_record = SeqRecord(
+            target_sequence,
+            id=chrom,
+            description="",
+        )
+
+        return [target_record, query_record]
+
+    @staticmethod
+    def _set_optional_attributes(alignment, words, bed_n):
+        """Set optional BED attributes on an alignment."""
+        if bed_n <= 4:
             return alignment
+
+        score = words[4]
+
+        try:
+            score = float(score)
+        except ValueError:
+            pass
+
+        alignment.score = score
+
+        if bed_n <= 6:
+            return alignment
+
+        alignment.thickStart = int(words[6])
+
+        if bed_n <= 7:
+            return alignment
+
+        alignment.thickEnd = int(words[7])
+
+        if bed_n <= 8:
+            return alignment
+
+        alignment.itemRgb = words[8]
+
+        return alignment
+
+    def _read_next_alignment(self, stream):
+        """Read and return the next alignment from a BED stream."""
+        for line in stream:
+            words = line.split()
+            bed_n = len(words)
+
+            if not 3 <= bed_n <= 12:
+                raise ValueError(
+                    f"expected between 3 and 12 columns, found {bed_n}"
+                )
+
+            chrom = words[0]
+            chrom_start = int(words[1])
+            chrom_end = int(words[2])
+            name = words[3] if bed_n > 3 else None
+            strand = words[5] if bed_n > 5 else "+"
+
+            if bed_n > 9:
+                block_sizes, block_starts = self._parse_blocks(words)
+                coordinates = self._build_block_coordinates(
+                    block_sizes,
+                    block_starts,
+                )
+                query_size = sum(block_sizes)
+            else:
+                coordinates, query_size = self._get_basic_coordinates(
+                    chrom_start,
+                    chrom_end,
+                )
+
+            coordinates[0, :] += chrom_start
+
+            records = self._create_records(
+                chrom,
+                name,
+                query_size,
+            )
+
+            if strand == "-":
+                coordinates[1, :] = query_size - coordinates[1, :]
+
+            self._validate_coordinates(
+                coordinates,
+                chrom_start,
+                chrom_end,
+            )
+
+            alignment = Alignment(records, coordinates)
+
+            return self._set_optional_attributes(
+                alignment,
+                words,
+                bed_n,
+            )
