@@ -1,0 +1,41 @@
+[
+    {
+        "type": "convention",
+        "module": "Bio.SeqIO.AbiIO",
+        "obj": "",
+        "line": 1,
+        "column": 0,
+        "endLine": null,
+        "endColumn": null,
+        "path": "Bio\\SeqIO\\AbiIO.py",
+        "symbol": "invalid-name",
+        "message": "Module name \"AbiIO\" doesn't conform to snake_case naming style",
+        "message-id": "C0103"
+    },
+    {
+        "type": "warning",
+        "module": "Bio.SeqIO.AceIO",
+        "obj": "",
+        "line": 118,
+        "column": 9,
+        "endLine": null,
+        "endColumn": null,
+        "path": "Bio\\SeqIO\\AceIO.py",
+        "symbol": "fixme",
+        "message": "TODO - Supporting reads (RD lines, plus perhaps QA and DS lines)",
+        "message-id": "W0511"
+    },
+    {
+        "type": "convention",
+        "module": "Bio.SeqIO.AceIO",
+        "obj": "",
+        "line": 1,
+        "column": 0,
+        "endLine": null,
+        "endColumn": null,
+        "path": "Bio\\SeqIO\\AceIO.py",
+        "symbol": "invalid-name",
+        "message": "Module name \"AceIO\" doesn't conform to snake_case naming style",
+        "message-id": "C0103"
+    }
+]
