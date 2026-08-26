@@ -64,7 +64,8 @@ _INSTRUMENT_SPECIFIC_TAGS["general"] = {
     "CTID1": "Container Identifier, a.k.a. plate barcode",
     "CTNM1": "Container name, usually identical to CTID, but not necessarily so",
     "CTTL1": "Comment Title",
-    "CpEP1": "Capillary type electrophoresis. 1 for a capillary based machine. 0 for a slab gel based machine.",
+    "CpEP1": "Capillary type electrophoresis. 1 for a capillary based machine. 0 for a "
+              "slab gel based machine.",
     "DATA1": "Channel 1 raw data",
     "DATA2": "Channel 2 raw data",
     "DATA3": "Channel 3 raw data",
@@ -160,7 +161,8 @@ _INSTRUMENT_SPECIFIC_TAGS["general"] = {
     "SMPL1": "Sample name",
     "SVER1": "Data collection software version",
     "SVER3": "Data collection firmware version",
-    "Satd1": "Array of longs representing the scan numbers of data points, which are flagged as saturated by data collection (optional)",
+    "Satd1": "Array of longs representing the scan numbers of data points, which are "
+              "flagged as saturated by data collection (optional)",
     "Scal1": "Rescaling divisor for color data",
     "Scan1": "Number of scans (legacy - use SCAN)",
     "TUBE1": "Well ID",
@@ -182,12 +184,15 @@ _INSTRUMENT_SPECIFIC_TAGS["abi_3130/3130xl"] = {
 }
 
 _INSTRUMENT_SPECIFIC_TAGS["abi_3530/3530xl"] = {
-    "AAct1": "Primary Analysis Audit Active indication. True if system auditing was enabled during the last write of this file, "
-             "false if system auditing was disabled.",
-    "ABED1": "Anode buffer expiration date using ISO 8601 format using the patterns YYYY-MM-DDTHH:MM:SS.ss+/-HH:MM. Hundredths of a second are optional.",
+    "AAct1": "Primary Analysis Audit Active indication. True if system auditing "
+             "was enabled during the last write of this file, false if system "
+             "auditing was disabled.",
+    "ABED1": "Anode buffer expiration date using ISO 8601 format using the patterns "
+             "YYYY-MM-DDTHH:MM:SS.ss+/-HH:MM. Hundredths of a second are optional.",
     "ABID1": "Anode buffer tray first installed date",
     "ABLt1": "Anode buffer lot number",
-    "ABRn1": "Number of runs (injections) processed with the current Anode Buffer (runs allowed - runs remaining)",
+    "ABRn1": "Number of runs (injections) processed with the current Anode Buffer (runs "
+              "allowed - runs remaining)",
     "ABTp1": "Anode buffer type",
     "AEPt1": "Analysis Ending scan number for basecalling on initial analysis",
     "AEPt2": "Analysis Ending scan number for basecalling on last analysis",
@@ -210,12 +215,14 @@ _INSTRUMENT_SPECIFIC_TAGS["abi_3530/3530xl"] = {
     "BcRs2": "Basecalling errors, a concatenated comma separated string",
     "CAED1": "Capillary array expiration",
     "CALt1": "Capillary array lot number",
-    "CARn1": "Number of injections processed (including the one of which this sample was a part) through the capillary array",
+    "CARn1": "Number of injections processed (including the one of which this sample was "
+              "a part) through the capillary array",
     "CASN1": "Capillary array serial number",
     "CBED1": "Cathode buffer expiration date",
     "CBID1": "Cathode buffer tray first installed date",
     "CBLt1": "Cathode buffer lot number",
-    "CBRn1": "Number of runs (injections) processed with the current Cathode Buffer (runs allowed - runs remaining)",
+    "CBRn1": "Number of runs (injections) processed with the current Cathode Buffer "
+              "(runs allowed - runs remaining)",
     "CBTp1": "Cathode buffer type",
     "CLRG1": "Start of the clear range (inclusive).",
     "CLRG2": "Clear range length",
@@ -223,28 +230,38 @@ _INSTRUMENT_SPECIFIC_TAGS["abi_3530/3530xl"] = {
     "CRLn2": 'One of "Pass", "Fail", or "Check"',
     "CTOw1": "The name entered as the Owner of a plate, in the plate editor",
     "CkSm1": "File checksum",
-    "DCEv1": "A list of door-close events, separated by semicolon. Door open events are generally paired with door close events.",
-    "DCHT1": "Reserved for backward compatibility. The detection cell heater temperature setting from the Run Module. Not used for 3500.",
-    "DOEv1": "A list of door-open events, separated by semicolon. Door close events are generally paired with door open events.",
+    "DCEv1": "A list of door-close events, separated by semicolon. Door open events are "
+              "generally paired with door close events.",
+    "DCHT1": "Reserved for backward compatibility. The detection cell heater temperature "
+              "setting from the Run Module. Not used for 3500.",
+    "DOEv1": "A list of door-open events, separated by semicolon. Door close events are "
+              "generally paired with door open events.",
     "ESig2": "Electronic signature record used across 3500 software",
     "FTab1": "Feature table. Can be created by Nibbler for Clear Range.",
     "FVoc1": "Feature table vocabulary. Can be created by Nibbler for Clear Range.",
     "Feat1": "Features. Can be created by Nibbler for Clear Range.",
     "HCFG1": "The Instrument Class. All upper case, no spaces. Initial valid value: CE",
-    "HCFG2": "The Instrument Family. All upper case, no spaces. Valid values: 31XX or 37XX for UDC, 35XX (for 3500)",
-    "HCFG3": "The official instrument name. Mixed case, minus any special formatting. Initial valid values: 3130, 3130xl, 3730, 3730xl, 3500, 3500xl.",
-    "HCFG4": "Instrument parameters. Contains key-value pairs of instrument configuration information, separated by semicolons. "
-             "Four parameters are included initially: UnitID=<UNITD number>, CPUBoard=<board type>, "
+    "HCFG2": "The Instrument Family. All upper case, no spaces. Valid values: 31XX or "
+              "37XX for UDC, 35XX (for 3500)",
+    "HCFG3": "The official instrument name. Mixed case, minus any special formatting. "
+              "Initial valid values: 3130, 3130xl, 3730, 3730xl, 3500, 3500xl.",
+    "HCFG4": "Instrument parameters. Contains key-value pairs of instrument "
+             "configuration information, separated by semicolons. Four parameters "
+             "are included initially: UnitID=<UNITD number>, CPUBoard=<board type>, "
              "ArraySize=<# of capillaries>, SerialNumber=<Instrument Serial#>.",
     "InjN1": "Injection name",
     "LAST1": "Parameter settings information",
-    "NOIS1": "The estimate of rms baseline noise (S/N ratio) for each dye for a successfully analyzed sample. "
-             "Corresponds in order to the raw data in tags DATA 1-4. KB basecaller only.",
-    "P1AM1": "Amplitude of primary peak, which is not necessarily equal to corresponding signal strength at that position",
+    "NOIS1": "The estimate of rms baseline noise (S/N ratio) for each dye for a "
+             "successfully analyzed sample. Corresponds in order to the raw data "
+             "in tags DATA 1-4. KB basecaller only.",
+    "P1AM1": "Amplitude of primary peak, which is not necessarily equal to corresponding "
+              "signal strength at that position",
     "P1RL1": "Deviation of primary peak position from (PLoc,2), times 100, rounded to integer",
     "P1WD1": "Full-width Half-max of primary peak, times 100, rounded to integer. "
-             "Corresponding signal intensity is not necessarily equal to one half of primary peak amplitude",
-    "P2AM1": "Amplitude of secondary peak, which is not necessarily equal to corresponding signal strength at that position",
+             "Corresponding signal intensity is not necessarily equal to one half "
+             "of primary peak amplitude",
+    "P2AM1": "Amplitude of secondary peak, which is not necessarily equal to "
+              "corresponding signal strength at that position",
     "P2BA1": "Base of secondary peak",
     "P2RL1": "Deviation of secondary peak position from (PLoc,2), times 100, rounded to integer",
     "PBAS1": "Array of sequence characters edited by user",
@@ -256,7 +273,8 @@ _INSTRUMENT_SPECIFIC_TAGS["abi_3530/3530xl"] = {
     "PLOC2": "Array of peak locations as called by Basecaller",
     "PRJT1": "SeqScape 2.0 project template name",
     "PROJ4": "SeqScape 2.0 project name",
-    "PSZE1": "Plate size. The number of sample positions in the container. Current allowed values: 96, 384.",
+    "PSZE1": "Plate size. The number of sample positions in the container. Current "
+              "allowed values: 96, 384.",
     "PTYP1": "Plate type. Current allowed values: 96-Well, 384-Well.",
     "PuSc1": "Median pupscore",
     "QV201": "QV20+ value",
@@ -265,14 +283,17 @@ _INSTRUMENT_SPECIFIC_TAGS["abi_3530/3530xl"] = {
     "QcRn1": "Trimming and QC code",
     "QcRs1": "QC warnings, a concatenated comma separated string",
     "QcRs2": "QC errors, a concatenated comma separated string",
-    "RGOw1": "The name entered as the Owner of a Results Group, in the Results Group Editor. Implemented as the user name from the results group.",
-    "RInj1": "Reinjection number. The reinjection number that this sample belongs to. Not present if there was no reinjection.",
+    "RGOw1": "The name entered as the Owner of a Results Group, in the Results Group "
+              "Editor. Implemented as the user name from the results group.",
+    "RInj1": "Reinjection number. The reinjection number that this sample belongs to. "
+              "Not present if there was no reinjection.",
     "RNmF1": "Raman normalization factor",
     "RevC1": "for whether the sequence has been complemented",
     "RunN1": "Run name (which, for 3500, is different from injection name)",
     "S/N%1": "Signal strength for each dye",
     "SMID1": "Polymer first installed date",
-    "SMRn1": "Number of runs (injections) processed with the current polymer (runs allowed - runs remaining)",
+    "SMRn1": "Number of runs (injections) processed with the current polymer (runs "
+              "allowed - runs remaining)",
     "SPAC1": "Average peak spacing used in last analysis",
     "SPAC2": "Basecaller name - corresponds to name of bcp file.",
     "SPAC3": "Average peak spacing last calculated by the Basecaller.",
@@ -344,6 +365,109 @@ def _get_string_tag(opt_bytes_value, default=None):
         return opt_bytes_value.decode(encoding=sys.getdefaultencoding())
 
 
+def _read_abi_header(stream):
+    """Read and validate the ABIF header block (PRIVATE).
+
+    Raises StopIteration once the stream is exhausted, or ValueError if the
+    stream ends in the middle of a header.
+    """
+    size = struct.calcsize(_HEADFMT)
+    data = stream.read(size)
+    if len(data) == 0:
+        raise StopIteration
+    if len(data) < size:
+        raise ValueError("premature end of file")
+    return struct.unpack(_HEADFMT, data)
+
+
+def _extract_abi_tags(header, stream):
+    """Parse directory entries into raw tags, annotations and metadata (PRIVATE).
+
+    Returns a dict with keys "raw", "annot", "sample_id", "seq" and "qual".
+    """
+    # dirty hack for handling time information
+    times = {"RUND1": "", "RUND2": "", "RUNT1": "", "RUNT2": ""}
+
+    # initialize annotations
+    annot = dict(zip(_EXTRACT.values(), [None] * len(_EXTRACT)))
+
+    # Set default sample ID value, which we expect to be present in most
+    # cases in the SMPL1 tag, but may be missing.
+    sample_id = "<unknown id>"
+
+    raw = {}
+    seq = qual = None
+    for tag_name, tag_number, tag_data in _abi_parse_header(header, stream):
+        key = tag_name + str(tag_number)
+
+        raw[key] = tag_data
+
+        # PBAS2 is base-called sequence, only available in 3530
+        if key == "PBAS2":
+            seq = tag_data.decode()
+        # PCON2 is quality values of base-called sequence
+        elif key == "PCON2":
+            qual = [ord(val) for val in tag_data.decode()]
+        # SMPL1 is sample id entered before sequencing run, it must be
+        # a string.
+        elif key == "SMPL1":
+            sample_id = _get_string_tag(tag_data)
+        elif key in times:
+            times[key] = tag_data
+        elif key in _EXTRACT:
+            annot[_EXTRACT[key]] = tag_data
+
+    # set time annotations
+    annot["run_start"] = f"{times['RUND1']} {times['RUNT1']}"
+    annot["run_finish"] = f"{times['RUND2']} {times['RUNT2']}"
+
+    # raw data (for advanced end users benefit)
+    annot["abif_raw"] = raw
+
+    return {
+        "raw": raw,
+        "annot": annot,
+        "sample_id": sample_id,
+        "seq": seq,
+        "qual": qual,
+    }
+
+
+def _abi_file_stem(stream, suffix):
+    """Return the stream's file name without its suffix, or "" (PRIVATE)."""
+    try:
+        return basename(stream.name).replace(suffix, "")
+    except AttributeError:
+        return ""
+
+
+def _build_abi_record(stream, tags, is_fsa_file):
+    """Build the SeqRecord for either an FSA trace or a sequencing trace (PRIVATE).
+
+    ``tags`` is the dict returned by _extract_abi_tags.
+    """
+    raw, annot = tags["raw"], tags["annot"]
+    if is_fsa_file:
+        sample_id = _get_string_tag(raw.get("LIMS1"), tags["sample_id"])
+        description = _get_string_tag(raw.get("CTID1"), "<unknown description>")
+        return SeqRecord(
+            Seq(""),
+            id=sample_id,
+            name=_abi_file_stem(stream, ".fsa"),
+            description=description,
+            annotations=annot,
+        )
+
+    # use the file name as SeqRecord.name if available
+    return SeqRecord(
+        Seq(tags["seq"]),
+        id=tags["sample_id"],
+        name=_abi_file_stem(stream, ".ab1"),
+        description="",
+        annotations=annot,
+    )
+
+
 class AbiIterator(SequenceIterator):
     """Parser for Abi files."""
 
@@ -364,91 +488,18 @@ class AbiIterator(SequenceIterator):
     def __next__(self):
         """Parse the file and generate SeqRecord objects."""
         stream = self.stream
-        # dirty hack for handling time information
-        times = {"RUND1": "", "RUND2": "", "RUNT1": "", "RUNT2": ""}
-
-        # initialize annotations
-        annot = dict(zip(_EXTRACT.values(), [None] * len(_EXTRACT)))
-
-        # parse header and extract data from directories
-        size = struct.calcsize(_HEADFMT)
-        data = stream.read(size)
-        if len(data) == 0:
-            raise StopIteration
-        elif len(data) < size:
-            raise ValueError("premature end of file")
-        header = struct.unpack(_HEADFMT, data)
-
-        # Set default sample ID value, which we expect to be present in most
-        # cases in the SMPL1 tag, but may be missing.
-        sample_id = "<unknown id>"
-
-        raw = {}
-        seq = qual = None
-        for tag_name, tag_number, tag_data in _abi_parse_header(header, stream):
-            key = tag_name + str(tag_number)
-
-            raw[key] = tag_data
-
-            # PBAS2 is base-called sequence, only available in 3530
-            if key == "PBAS2":
-                seq = tag_data.decode()
-            # PCON2 is quality values of base-called sequence
-            elif key == "PCON2":
-                qual = [ord(val) for val in tag_data.decode()]
-            # SMPL1 is sample id entered before sequencing run, it must be
-            # a string.
-            elif key == "SMPL1":
-                sample_id = _get_string_tag(tag_data)
-            elif key in times:
-                times[key] = tag_data
-            else:
-                if key in _EXTRACT:
-                    annot[_EXTRACT[key]] = tag_data
-
-        # set time annotations
-        annot["run_start"] = f"{times['RUND1']} {times['RUNT1']}"
-        annot["run_finish"] = f"{times['RUND2']} {times['RUNT2']}"
-
-        # raw data (for advanced end users benefit)
-        annot["abif_raw"] = raw
+        header = _read_abi_header(stream)
+        tags = _extract_abi_tags(header, stream)
 
         # fsa check
-        is_fsa_file = all(tn not in raw for tn in ("PBAS1", "PBAS2"))
+        is_fsa_file = all(tn not in tags["raw"] for tn in ("PBAS1", "PBAS2"))
+        record = _build_abi_record(stream, tags, is_fsa_file)
 
-        if is_fsa_file:
-            try:
-                file_name = basename(stream.name).replace(".fsa", "")
-            except AttributeError:
-                file_name = ""
-
-            sample_id = _get_string_tag(raw.get("LIMS1"), sample_id)
-            description = _get_string_tag(raw.get("CTID1"), "<unknown description>")
-            record = SeqRecord(
-                Seq(""),
-                id=sample_id,
-                name=file_name,
-                description=description,
-                annotations=annot,
-            )
-
-        else:
-            # use the file name as SeqRecord.name if available
-            try:
-                file_name = basename(stream.name).replace(".ab1", "")
-            except AttributeError:
-                file_name = ""
-            record = SeqRecord(
-                Seq(seq),
-                id=sample_id,
-                name=file_name,
-                description="",
-                annotations=annot,
-            )
+        qual = tags["qual"]
         if qual:
             # Expect this to be missing for FSA files.
             record.letter_annotations["phred_quality"] = qual
-        elif not is_fsa_file and not qual and self.trim:
+        elif not is_fsa_file and self.trim:
             raise ValueError(
                 "The 'abi-trim' format can not be used for files without"
                 " quality values."
@@ -463,8 +514,11 @@ class AbiIterator(SequenceIterator):
         return record
 
 
-def _AbiTrimIterator(stream):
-    """Return an iterator for the Abi file format that yields trimmed SeqRecord objects (PRIVATE)."""
+# The name below does not follow snake_case on purpose: Bio.SeqIO looks up
+# format iterators by this exact name (see Bio/SeqIO/__init__.py), so
+# renaming it would break the public "abi-trim" format dispatch.
+def _AbiTrimIterator(stream):  # pylint: disable=invalid-name
+    """Return an iterator for the Abi format that yields trimmed SeqRecord objects (PRIVATE)."""
     return AbiIterator(stream, trim=True)
 
 
@@ -486,21 +540,16 @@ def _abi_parse_header(header, stream):
         dir_entry = struct.unpack(_DIRFMT, stream.read(struct.calcsize(_DIRFMT))) + (
             start,
         )
-        # only parse desired dirs
-        key = dir_entry[0].decode()
-        key += str(dir_entry[1])
-
         tag_name = dir_entry[0].decode()
         tag_number = dir_entry[1]
         elem_code = dir_entry[2]
         elem_num = dir_entry[4]
         data_size = dir_entry[5]
         data_offset = dir_entry[6]
-        tag_offset = dir_entry[8]
         # if data size <= 4 bytes, data is stored inside tag
-        # so offset needs to be changed
+        # so offset needs to be changed (tag offset + 20 bytes header)
         if data_size <= 4:
-            data_offset = tag_offset + 20
+            data_offset = dir_entry[8] + 20
         stream.seek(data_offset)
         data = stream.read(data_size)
         yield tag_name, tag_number, _parse_tag_data(elem_code, elem_num, data)
@@ -527,34 +576,46 @@ def _abi_trim(seq_record):
 
     if len(seq_record) <= segment:
         return seq_record
-    else:
-        # calculate base score
-        score_list = [
-            cutoff - (10 ** (qual / -10.0))
-            for qual in seq_record.letter_annotations["phred_quality"]
-        ]
 
-        # calculate cumulative score
-        # if cumulative value < 0, set it to 0
-        # first value is set to 0, because of the assumption that
-        # the first base will always be trimmed out
-        cummul_score = [0]
-        for i in range(1, len(score_list)):
-            score = cummul_score[-1] + score_list[i]
-            if score < 0:
-                cummul_score.append(0)
-            else:
-                cummul_score.append(score)
-                if not start:
-                    # trim_start = value when cumulative score is first > 0
-                    trim_start = i
-                    start = True
+    # calculate base score
+    score_list = [
+        cutoff - (10 ** (qual / -10.0))
+        for qual in seq_record.letter_annotations["phred_quality"]
+    ]
 
-        # trim_finish = index of highest cumulative score,
-        # marking the end of sequence segment with highest cumulative score
-        trim_finish = cummul_score.index(max(cummul_score))
+    # calculate cumulative score
+    # if cumulative value < 0, set it to 0
+    # first value is set to 0, because of the assumption that
+    # the first base will always be trimmed out
+    cummul_score = [0]
+    for i in range(1, len(score_list)):
+        score = cummul_score[-1] + score_list[i]
+        if score < 0:
+            cummul_score.append(0)
+            continue
+        cummul_score.append(score)
+        if not start:
+            # trim_start = value when cumulative score is first > 0
+            trim_start = i
+            start = True
 
-        return seq_record[trim_start:trim_finish]
+    # trim_finish = index of highest cumulative score,
+    # marking the end of sequence segment with highest cumulative score
+    trim_finish = cummul_score.index(max(cummul_score))
+
+    return seq_record[trim_start:trim_finish]
+
+
+# per data-type conversions applied to the unpacked tag value in
+# _parse_tag_data, keyed by ABIF element type code
+_ELEM_CODE_CONVERTERS = {
+    2: lambda data: data,
+    10: lambda data: str(datetime.date(*data)),
+    11: lambda data: str(datetime.time(*data[:3])),
+    13: bool,
+    18: lambda data: data[1:],
+    19: lambda data: data[:-1],
+}
 
 
 def _parse_tag_data(elem_code, elem_num, raw_data):
@@ -566,39 +627,24 @@ def _parse_tag_data(elem_code, elem_num, raw_data):
      - raw_data - abi file object from which the tags would be unpacked
 
     """
-    if elem_code in _BYTEFMT:
-        # because '>1s' unpack differently from '>s'
-        if elem_num == 1:
-            num = ""
-        else:
-            num = str(elem_num)
-        fmt = ">" + num + _BYTEFMT[elem_code]
-
-        assert len(raw_data) == struct.calcsize(fmt)
-        data = struct.unpack(fmt, raw_data)
-
-        # no need to use tuple if len(data) == 1
-        # also if data is date / time
-        if elem_code not in [10, 11] and len(data) == 1:
-            data = data[0]
-
-        # account for different data types
-        if elem_code == 2:
-            return data
-        elif elem_code == 10:
-            return str(datetime.date(*data))
-        elif elem_code == 11:
-            return str(datetime.time(*data[:3]))
-        elif elem_code == 13:
-            return bool(data)
-        elif elem_code == 18:
-            return data[1:]
-        elif elem_code == 19:
-            return data[:-1]
-        else:
-            return data
-    else:
+    if elem_code not in _BYTEFMT:
         return None
+
+    # because '>1s' unpack differently from '>s'
+    num = "" if elem_num == 1 else str(elem_num)
+    fmt = ">" + num + _BYTEFMT[elem_code]
+
+    assert len(raw_data) == struct.calcsize(fmt)
+    data = struct.unpack(fmt, raw_data)
+
+    # no need to use tuple if len(data) == 1
+    # also if data is date / time
+    if elem_code not in (10, 11) and len(data) == 1:
+        data = data[0]
+
+    # account for different data types
+    convert = _ELEM_CODE_CONVERTERS.get(elem_code)
+    return convert(data) if convert else data
 
 
 if __name__ == "__main__":
