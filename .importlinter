@@ -6,3 +6,21 @@ name = BigPsl independence
 type = independence
 modules =
     Bio.Align.bigpsl
+
+[importlinter:contract:abiio-forbidden]
+name = AbiIO does not couple to AceIO
+type = forbidden
+source_modules =
+    Bio.SeqIO.AbiIO
+forbidden_modules =
+    Bio.SeqIO.AceIO
+allow_indirect_imports = True
+
+[importlinter:contract:aceio-forbidden]
+name = AceIO does not couple to AbiIO
+type = forbidden
+source_modules =
+    Bio.SeqIO.AceIO
+forbidden_modules =
+    Bio.SeqIO.AbiIO
+allow_indirect_imports = True
