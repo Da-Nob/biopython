@@ -1,0 +1,41 @@
+[
+    {
+        "type": "convention",
+        "module": "Bio.SeqIO.SwissIO",
+        "obj": "",
+        "line": 1,
+        "column": 0,
+        "endLine": null,
+        "endColumn": null,
+        "path": "Bio\\SeqIO\\SwissIO.py",
+        "symbol": "invalid-name",
+        "message": "Module name \"SwissIO\" doesn't conform to snake_case naming style",
+        "message-id": "C0103"
+    },
+    {
+        "type": "convention",
+        "module": "Bio.SeqIO.SwissIO",
+        "obj": "_build_reference_feature",
+        "line": 48,
+        "column": 31,
+        "endLine": 48,
+        "endColumn": 39,
+        "path": "Bio\\SeqIO\\SwissIO.py",
+        "symbol": "consider-using-f-string",
+        "message": "Formatting a regular string which could be an f-string",
+        "message-id": "C0209"
+    },
+    {
+        "type": "warning",
+        "module": "Bio.SeqIO.SwissIO",
+        "obj": "SwissIterator.__next__",
+        "line": 131,
+        "column": 23,
+        "endLine": 131,
+        "endColumn": 38,
+        "path": "Bio\\SeqIO\\SwissIO.py",
+        "symbol": "protected-access",
+        "message": "Access to a protected member _read of a client class",
+        "message-id": "W0212"
+    }
+]

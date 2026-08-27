@@ -1,0 +1,41 @@
+[
+    {
+        "type": "convention",
+        "module": "Bio.SeqIO.PirIO",
+        "obj": "",
+        "line": 1,
+        "column": 0,
+        "endLine": null,
+        "endColumn": null,
+        "path": "Bio\\SeqIO\\PirIO.py",
+        "symbol": "invalid-name",
+        "message": "Module name \"PirIO\" doesn't conform to snake_case naming style",
+        "message-id": "C0103"
+    },
+    {
+        "type": "refactor",
+        "module": "Bio.SeqIO.PirIO",
+        "obj": "PirIterator.__next__",
+        "line": 156,
+        "column": 8,
+        "endLine": 159,
+        "endColumn": 45,
+        "path": "Bio\\SeqIO\\PirIO.py",
+        "symbol": "no-else-raise",
+        "message": "Unnecessary \"else\" after \"raise\", remove the \"else\" and de-indent the code inside it",
+        "message-id": "R1720"
+    },
+    {
+        "type": "refactor",
+        "module": "Bio.SeqIO.PirIO",
+        "obj": "PirWriter.write_record",
+        "line": 236,
+        "column": 4,
+        "endLine": 236,
+        "endColumn": 20,
+        "path": "Bio\\SeqIO\\PirIO.py",
+        "symbol": "too-many-branches",
+        "message": "Too many branches (16/12)",
+        "message-id": "R0912"
+    }
+]

@@ -1,0 +1,15 @@
+[
+    {
+        "type": "convention",
+        "module": "Bio.SeqIO.PirIO",
+        "obj": "",
+        "line": 1,
+        "column": 0,
+        "endLine": null,
+        "endColumn": null,
+        "path": "Bio\\SeqIO\\PirIO.py",
+        "symbol": "invalid-name",
+        "message": "Module name \"PirIO\" doesn't conform to snake_case naming style",
+        "message-id": "C0103"
+    }
+]
