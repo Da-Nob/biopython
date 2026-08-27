@@ -29,6 +29,8 @@ ARQUIVOS = {
     "bed.py": "Bio/Align/bed.py", # <-- ADICIONADO AQUI
     "AbiIO.py": "Bio/SeqIO/AbiIO.py",
     "AceIO.py": "Bio/SeqIO/AceIO.py",
+    "SwissIO.py": "Bio/SeqIO/SwissIO.py",
+    "PirIO.py": "Bio/SeqIO/PirIO.py",
 }
 
 
