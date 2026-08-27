@@ -107,6 +107,52 @@ _pir_mol_type = {
 }
 
 
+def _parse_pir_header(line):
+    """Parse a '>XX;identifier' PIR header line (PRIVATE).
+
+    Returns the (pir_type, identifier) pair.
+    """
+    pir_type = line[1:3]
+    if pir_type not in _pir_mol_type or line[3] != ";":
+        raise ValueError(
+            "Records should start with '>XX;' where XX is a valid sequence type"
+        )
+    return pir_type, line[4:].strip()
+
+
+def _read_pir_sequence(stream):
+    """Read the sequence block of a PIR record (PRIVATE).
+
+    Returns the sequence (with the '*' terminator stripped) and the next
+    '>' header line already read from the stream, or None at EOF.
+    """
+    lines = []
+    next_line = None
+    for line in stream:
+        if line[0] == ">":
+            next_line = line
+            break
+        # Remove trailing whitespace, and any internal spaces
+        lines.append(line.rstrip().replace(" ", ""))
+    seq = "".join(lines)
+    if seq[-1] != "*":
+        # Note the * terminator is present on nucleotide sequences too,
+        # it is not a stop codon!
+        raise ValueError("Sequences in PIR files should include a * terminator!")
+    return seq[:-1], next_line
+
+
+def _build_pir_record(identifier, description, seq, pir_type):
+    """Build the SeqRecord for a single PIR entry (PRIVATE)."""
+    record = SeqRecord(
+        Seq(seq), id=identifier, name=identifier, description=description
+    )
+    record.annotations["PIR-type"] = pir_type
+    if _pir_mol_type[pir_type]:
+        record.annotations["molecule_type"] = _pir_mol_type[pir_type]
+    return record
+
+
 class PirIterator(SequenceIterator):
     """Parser for PIR files."""
 
@@ -145,42 +191,60 @@ class PirIterator(SequenceIterator):
         if line is None:
             raise StopIteration
 
-        pir_type = line[1:3]
-        if pir_type not in _pir_mol_type or line[3] != ";":
-            raise ValueError(
-                "Records should start with '>XX;' where XX is a valid sequence type"
-            )
+        pir_type, identifier = _parse_pir_header(line)
 
-        identifier = line[4:].strip()
         description = self.stream.readline()
         if description == "":
             raise StopIteration
-        else:
-            description = description.strip()
+        description = description.strip()
 
-        lines = []
-        for line in self.stream:
-            if line[0] == ">":
-                self._line = line
-                break
-            # Remove trailing whitespace, and any internal spaces
-            lines.append(line.rstrip().replace(" ", ""))
-        else:
-            self._line = None
-        seq = "".join(lines)
-        if seq[-1] != "*":
-            # Note the * terminator is present on nucleotide sequences too,
-            # it is not a stop codon!
-            raise ValueError("Sequences in PIR files should include a * terminator!")
+        seq, self._line = _read_pir_sequence(self.stream)
 
         # Return the record and then continue...
-        record = SeqRecord(
-            Seq(seq[:-1]), id=identifier, name=identifier, description=description
-        )
-        record.annotations["PIR-type"] = pir_type
-        if _pir_mol_type[pir_type]:
-            record.annotations["molecule_type"] = _pir_mol_type[pir_type]
-        return record
+        return _build_pir_record(identifier, description, seq, pir_type)
+
+
+def _pir_raw_title(record, record2title):
+    """Return the raw (uncleaned) title text for a PIR record header (PRIVATE)."""
+    if record2title:
+        return record2title(record)
+    return record.id
+
+
+def _pir_raw_description(record):
+    """Return the raw (uncleaned) description text for a PIR record header (PRIVATE)."""
+    if record.name and record.description:
+        return f"{record.name} - {record.description}"
+    if record.name:
+        return record.name
+    return record.description
+
+
+# Molecule-type keyword -> PIR sequence code, checked in order.
+_MOLECULE_TYPE_CODES = (
+    ("DNA", "D1"),
+    ("RNA", "RL"),
+    ("protein", "P1"),
+)
+
+
+def _pir_code_for_molecule_type(molecule_type):
+    """Guess the PIR sequence code (e.g. 'P1') from a molecule_type (PRIVATE)."""
+    if molecule_type:
+        for keyword, code in _MOLECULE_TYPE_CODES:
+            if keyword in molecule_type:
+                return code
+    return "XX"
+
+
+def _wrap_pir_sequence(data, wrap):
+    """Wrap a sequence string into fixed-width lines terminated by '*' (PRIVATE)."""
+    if not wrap:
+        return data + "*\n"
+    line = ""
+    for i in range(0, len(data), wrap):
+        line += data[i : i + wrap] + "\n"
+    return line[:-1] + "*\n"
 
 
 class PirWriter(SequenceWriter):
@@ -235,33 +299,12 @@ class PirWriter(SequenceWriter):
 
     def write_record(self, record):
         """Write a single PIR record to the file."""
-        if self.record2title:
-            title = self.clean(self.record2title(record))
-        else:
-            title = self.clean(record.id)
+        title = self.clean(_pir_raw_title(record, self.record2title))
+        description = self.clean(_pir_raw_description(record))
 
-        if record.name and record.description:
-            description = self.clean(record.name + " - " + record.description)
-        elif record.name and not record.description:
-            description = self.clean(record.name)
-        else:
-            description = self.clean(record.description)
-
-        if self.code:
-            code = self.code
-        else:
-            molecule_type = record.annotations.get("molecule_type")
-            if molecule_type is None:
-                code = "XX"
-            elif "DNA" in molecule_type:
-                code = "D1"
-            elif "RNA" in molecule_type:
-                code = "RL"
-            elif "protein" in molecule_type:
-                code = "P1"
-            else:
-                code = "XX"
-
+        code = self.code or _pir_code_for_molecule_type(
+            record.annotations.get("molecule_type")
+        )
         if code not in _pir_mol_type:
             raise TypeError(
                 "Sequence code must be one of " + _pir_mol_type.keys() + "."
@@ -276,14 +319,7 @@ class PirWriter(SequenceWriter):
         assert "\n" not in data
         assert "\r" not in data
 
-        if self.wrap:
-            line = ""
-            for i in range(0, len(data), self.wrap):
-                line += data[i : i + self.wrap] + "\n"
-            line = line[:-1] + "*\n"
-            self.handle.write(line)
-        else:
-            self.handle.write(data + "*\n")
+        self.handle.write(_wrap_pir_sequence(data, self.wrap))
 
 
 if __name__ == "__main__":

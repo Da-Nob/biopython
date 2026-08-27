@@ -24,3 +24,21 @@ source_modules =
 forbidden_modules =
     Bio.SeqIO.AbiIO
 allow_indirect_imports = True
+
+[importlinter:contract:swissio-forbidden]
+name = SwissIO does not couple to PirIO
+type = forbidden
+source_modules =
+    Bio.SeqIO.SwissIO
+forbidden_modules =
+    Bio.SeqIO.PirIO
+allow_indirect_imports = True
+
+[importlinter:contract:pirio-forbidden]
+name = PirIO does not couple to SwissIO
+type = forbidden
+source_modules =
+    Bio.SeqIO.PirIO
+forbidden_modules =
+    Bio.SeqIO.SwissIO
+allow_indirect_imports = True
